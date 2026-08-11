@@ -86,7 +86,7 @@
         
         <div class="flex-1 max-w-xl mx-4 flex items-center justify-center">
             <div id="status-bar" class="text-xs sm:text-sm font-medium text-slate-600 flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-full truncate">
-                <i class="ph-bold ph-info text-violet-600"></i> 请导入 PDF 或图片（支持 100+ 页大型课件全自动连续标注）
+                <i class="ph-bold ph-info text-violet-600"></i> 请导入 PPT / PDF / 图片（点击页面即可按需即时标注）
             </div>
         </div>
 
@@ -110,20 +110,20 @@
             <!-- Batch Progress Control Panel -->
             <div class="p-3 border-b border-slate-200 bg-slate-50 flex flex-col gap-2">
                 <div class="flex items-center justify-between text-xs font-semibold text-slate-600">
-                    <span>标注进度 (<span id="batch-progress-text">0/0</span>)</span>
-                    <span id="batch-speed-tag" class="text-[10px] text-violet-600 font-normal"></span>
+                    <span>标注概况 (<span id="batch-progress-text">0/0</span>)</span>
+                    <span id="batch-speed-tag" class="text-[10px] text-violet-600 font-normal">点击标注</span>
                 </div>
                 <!-- Progress Bar -->
-                <div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                <div class="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
                     <div id="batch-progress-bar" class="bg-violet-600 h-full w-0 transition-all duration-300"></div>
                 </div>
-                <!-- Batch Actions -->
-                <div class="flex items-center justify-between pt-1 text-xs">
-                    <button id="btn-toggle-pause" onclick="toggleBatchPause()" class="text-slate-600 hover:text-violet-600 font-medium flex items-center gap-1 hidden">
-                        <i class="ph-bold ph-pause"></i> <span id="pause-btn-label">暂停</span>
+                <!-- Optional Batch Actions -->
+                <div class="flex items-center justify-between pt-1 text-[11px]">
+                    <button onclick="startBatchQueue()" class="text-slate-600 hover:text-violet-600 font-medium flex items-center gap-1">
+                        <i class="ph-bold ph-play"></i> 顺序全标
                     </button>
-                    <button onclick="retryUnannotatedPages()" class="text-violet-600 hover:text-violet-800 font-medium ml-auto flex items-center gap-1">
-                        <i class="ph-bold ph-arrow-clockwise"></i> 缺漏页补标
+                    <button id="btn-toggle-pause" onclick="toggleBatchPause()" class="text-slate-600 hover:text-amber-600 font-medium flex items-center gap-1 hidden">
+                        <i class="ph-bold ph-pause"></i> <span id="pause-btn-label">暂停</span>
                     </button>
                 </div>
             </div>
@@ -144,9 +144,11 @@
                     <button onclick="nextSlide()" class="hover:text-slate-900 flex items-center gap-1 font-medium">下一页 <i class="ph-bold ph-caret-right"></i></button>
                 </div>
                 <div class="flex gap-3 items-center">
-                    <button onclick="forceReannotateCurrentSlide()" class="text-xs text-slate-500 hover:text-violet-600 flex items-center gap-1">
-                        <i class="ph-bold ph-lightning"></i> 重新标本页
-                    </button>
+                    <div id="header-annotate-container">
+                        <button id="header-annotate-btn" onclick="annotateCurrentSlide()" class="text-xs bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100 font-medium px-2.5 py-1 rounded-md flex items-center gap-1 transition-colors">
+                            <i class="ph-bold ph-sparkle text-violet-600"></i> 标注本页
+                        </button>
+                    </div>
                     <button onclick="speakSlideText()" class="text-xs sm:text-sm flex items-center gap-1 text-slate-600 hover:text-violet-600 font-medium transition-colors">
                         <i class="ph-bold ph-speaker-high"></i> 朗读本页
                     </button>
@@ -160,17 +162,19 @@
                     <img id="current-slide-img" src="" class="max-w-full h-auto object-contain hidden" style="max-height: 55vh;" alt="Slide Image">
                     <div id="slide-placeholder" class="w-full h-64 flex flex-col items-center justify-center text-slate-400 bg-slate-50">
                         <i class="ph-duotone ph-file-pdf text-4xl mb-2 text-violet-400"></i>
-                        <p class="text-sm">支持导入 100+ 页大型 PDF/图片课件，AI 将全自动顺次标注</p>
+                        <p class="text-sm">支持导入 100+ 页大型 PDF/图片课件，按需自由快速标注</p>
                     </div>
                 </div>
 
                 <!-- Text & LaTeX Formulas -->
                 <div class="w-full max-w-4xl bg-white shadow-sm rounded-xl border border-slate-200 p-5 sm:p-7">
-                    <h2 class="text-base font-bold text-slate-800 mb-3 flex items-center gap-2">
-                        <i class="ph-bold ph-text-aa text-violet-600 text-lg"></i> 原文解析与专业词汇高亮
+                    <h2 class="text-base font-bold text-slate-800 mb-3 flex items-center justify-between">
+                        <span class="flex items-center gap-2">
+                            <i class="ph-bold ph-text-aa text-violet-600 text-lg"></i> 原文解析与专业词汇高亮
+                        </span>
                     </h2>
                     <div id="slide-text" class="text-slate-600 leading-relaxed text-[15px] space-y-3 min-h-[100px]">
-                        请上传课件文件，系统将自动识别全书并批量标注专业词汇。
+                        请上传课件文件。
                     </div>
                 </div>
             </div>
@@ -291,13 +295,11 @@
         let apiBaseUrl = localStorage.getItem('slideprep_gemini_base') || 'https://generativelanguage.googleapis.com';
         let flashcardIndex = 0;
         
-        // Batch Controller State for Large Decks (100+ pages)
+        // Batch Controller State
         let isBatchProcessing = false;
         let isBatchPaused = false;
-        let batchIntervalDelay = 2500; // 2.5s pacing to respect API limits
-        let activePriorityIndex = -1;  // Instant priority jump for current slide
+        let batchIntervalDelay = 2000;
 
-        // Toast Notification System
         function showToast(message, type = 'info') {
             const container = document.getElementById('toast-container');
             if (!container) return;
@@ -335,7 +337,7 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             if(!apiKey) {
-                showToast('请在右上角设置中配置 Gemini API Key 以开启自动标注', 'warning');
+                showToast('请在右上角⚙️设置中配置 Gemini API Key', 'warning');
             }
         });
 
@@ -366,7 +368,6 @@
                 localStorage.setItem('slideprep_gemini_base', apiBaseUrl);
                 showToast('设置已保存！', 'success');
                 toggleSettings();
-                if(slides.length > 0) startBatchQueue();
             } else {
                 showToast('API Key 不能为空', 'error');
             }
@@ -406,20 +407,11 @@
                     const errData = await res.json().catch(() => ({}));
                     const errMsg = errData.error?.message || res.statusText || `HTTP Status ${res.status}`;
                     resultBox.className = 'text-[11px] mt-2 p-2.5 rounded-lg border bg-red-50 border-red-200 text-red-800';
-                    
-                    if(res.status === 400) {
-                        resultBox.innerHTML = `❌ <strong>API Key 无效或请求错误 (${res.status}):</strong><br/>${errMsg}`;
-                    } else if(res.status === 403) {
-                        resultBox.innerHTML = `❌ <strong>权限拒绝 / 地区限制 (${res.status}):</strong><br/>${errMsg}`;
-                    } else if(res.status === 429) {
-                        resultBox.innerHTML = `⚠️ <strong>触及 API 速率限制 (429):</strong><br/>请求太频繁，请稍等再试。`;
-                    } else {
-                        resultBox.innerHTML = `❌ <strong>服务响应异常 (${res.status}):</strong><br/>${errMsg}`;
-                    }
+                    resultBox.innerHTML = `❌ <strong>请求失败 (${res.status}):</strong><br/>${errMsg}`;
                 }
             } catch(err) {
                 resultBox.className = 'text-[11px] mt-2 p-2.5 rounded-lg border bg-amber-50 border-amber-200 text-amber-900';
-                resultBox.innerHTML = `❌ <strong>网络连接失败 (Failed to fetch):</strong><br/>浏览器无法连接到 Google 服务器。<br/><strong>常见原因与解决方法：</strong><br/>1. 若在中国大陆网络环境下，请开启<strong>网络代理/梯子</strong>；<br/>2. 或在上方填写<strong>【API 反向代理地址】</strong>。<br/><em>错误日志: ${err.message}</em>`;
+                resultBox.innerHTML = `❌ <strong>网络连接失败 (Failed to fetch):</strong><br/>浏览器无法连接到 Google 服务器。请检查代理或填写 API 反代地址。`;
             } finally {
                 testBtn.innerHTML = `<i class="ph-bold ph-lightning text-amber-500"></i> 测试 API Key & 网络连通性`;
                 testBtn.disabled = false;
@@ -475,9 +467,8 @@
             if (slides.length > 0) {
                 renderSlideList();
                 goToSlide(0);
-                showToast(`课件导入成功！共 ${slides.length} 页，启动高效后台标注`, 'success');
-                document.getElementById('btn-toggle-pause').classList.remove('hidden');
-                startBatchQueue();
+                showToast(`课件解析成功！共 ${slides.length} 页，已准备就绪`, 'success');
+                updateStatusBar(`导入成功（共 ${slides.length} 页），支持随心翻阅与按需标注`);
             } else {
                 updateStatusBar('文件导入失败，请检查格式');
             }
@@ -493,7 +484,6 @@
                     const textContent = await page.getTextContent();
                     const text = textContent.items.map(item => item.str).join(' ').trim();
                     
-                    // Optimized Scale for 100+ pages memory conservation
                     const viewport = page.getViewport({ scale: 0.8 });
                     const canvas = document.createElement('canvas');
                     const context = canvas.getContext('2d');
@@ -501,7 +491,6 @@
                     canvas.width = viewport.width;
                     await page.render({ canvasContext: context, viewport: viewport }).promise;
                     
-                    // Low JPEG Quality for memory reduction
                     const imageUrl = canvas.toDataURL('image/jpeg', 0.4);
                     
                     slides.push({
@@ -571,15 +560,13 @@
             const completed = slides.filter(s => s.status === 'done').length;
             const percent = Math.round((completed / total) * 100);
             
-            document.getElementById('batch-progress-text').innerText = `${completed}/${total} (${percent}%)`;
+            document.getElementById('batch-progress-text').innerText = `${completed}/${total}`;
             document.getElementById('batch-progress-bar').style.width = `${percent}%`;
             
-            if(completed === total) {
-                document.getElementById('batch-speed-tag').innerText = "✅ 全卷完成";
-            } else if (isBatchPaused) {
-                document.getElementById('batch-speed-tag').innerText = "⏸ 已暂停";
+            if (isBatchProcessing) {
+                document.getElementById('batch-speed-tag').innerText = "⚡ 顺序标注中";
             } else {
-                document.getElementById('batch-speed-tag').innerText = "⚡ 自动连续标注中";
+                document.getElementById('batch-speed-tag').innerText = "按需点击标注";
             }
         }
 
@@ -596,21 +583,7 @@
             document.getElementById('page-indicator').innerText = `${currentSlideIndex + 1} / ${slides.length}`;
             
             renderSlideList();
-            
-            if(slide.status === 'done') {
-                updateSlideTextUI(slide);
-                renderVocabTab(slide);
-            } else if (slide.status === 'processing') {
-                document.getElementById('slide-text').innerHTML = '<div class="text-slate-400 flex items-center gap-2"><div class="loader"></div> AI 正在智能提取本页专业术语与公式...</div>';
-            } else {
-                // Instantly prioritize current slide in batch queue!
-                activePriorityIndex = currentSlideIndex;
-                document.getElementById('slide-text').innerText = slide.text || "已将本页调整至优先标注队列...";
-                document.getElementById('vocab-list').innerHTML = '<div class="text-center text-slate-400 text-xs">排队中...</div>';
-                
-                // Wake up batch queue if idle
-                if(!isBatchProcessing) startBatchQueue();
-            }
+            renderCurrentSlideContent(slide);
 
             flashcardIndex = 0;
             updateFlashcardUI();
@@ -621,96 +594,109 @@
                 </div>`;
         }
 
+        function renderCurrentSlideContent(slide) {
+            const textContainer = document.getElementById('slide-text');
+            const annotateBtnHeader = document.getElementById('header-annotate-btn');
+
+            if (slide.status === 'done') {
+                updateSlideTextUI(slide);
+                renderVocabTab(slide);
+                if (annotateBtnHeader) {
+                    annotateBtnHeader.innerHTML = `<i class="ph-bold ph-arrow-clockwise"></i> 重新标注本页`;
+                    annotateBtnHeader.onclick = forceReannotateCurrentSlide;
+                    annotateBtnHeader.className = "text-xs text-slate-500 hover:text-violet-600 flex items-center gap-1 cursor-pointer";
+                }
+            } else if (slide.status === 'processing') {
+                textContainer.innerHTML = '<div class="text-violet-600 font-medium flex items-center gap-2 py-8 justify-center text-sm"><div class="loader"></div> AI 正在智能识别本页专业术语、公式与核心要点...</div>';
+                renderVocabTab({ vocab: [] });
+            } else {
+                // Pending state: show preview text & call-to-action button
+                let rawTextPreview = slide.text ? `<div class="p-3 bg-slate-50 rounded-lg text-slate-600 text-sm mb-4 border border-slate-200/60 max-h-48 overflow-y-auto leading-relaxed">${slide.text.replace(/\n/g, '<br/>')}</div>` : '';
+                
+                textContainer.innerHTML = `
+                    ${rawTextPreview}
+                    <div class="flex flex-col items-center justify-center p-6 bg-violet-50/60 border border-dashed border-violet-200 rounded-xl my-2">
+                        <i class="ph-duotone ph-sparkle text-3xl text-violet-600 mb-2"></i>
+                        <p class="text-xs text-slate-600 mb-3 font-medium">需要对本页进行专业术语标注、翻译与公式解析吗？</p>
+                        <button onclick="annotateCurrentSlide()" class="bg-violet-600 hover:bg-violet-700 text-white font-medium text-xs sm:text-sm py-2 px-5 rounded-lg shadow-sm transition-all flex items-center gap-2 transform hover:scale-[1.02]">
+                            <i class="ph-bold ph-lightning"></i> 智能标注本页 (专词/公式/翻译)
+                        </button>
+                    </div>
+                `;
+                renderVocabTab({ vocab: [] });
+                if (annotateBtnHeader) {
+                    annotateBtnHeader.innerHTML = `<i class="ph-bold ph-sparkle text-violet-600"></i> 标注本页`;
+                    annotateBtnHeader.onclick = annotateCurrentSlide;
+                    annotateBtnHeader.className = "text-xs bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100 font-medium px-2.5 py-1 rounded-md flex items-center gap-1 transition-colors cursor-pointer";
+                }
+            }
+        }
+
+        async function annotateCurrentSlide() {
+            if (currentSlideIndex < 0 || currentSlideIndex >= slides.length) return;
+            if (!apiKey) {
+                showToast('请先配置 API Key', 'warning');
+                toggleSettings();
+                return;
+            }
+            const slide = slides[currentSlideIndex];
+            slide.status = 'pending';
+            await annotateSingleSlide(currentSlideIndex);
+        }
+
         function prevSlide() { goToSlide(currentSlideIndex - 1); }
         function nextSlide() { goToSlide(currentSlideIndex + 1); }
 
         function toggleBatchPause() {
             isBatchPaused = !isBatchPaused;
             document.getElementById('pause-btn-label').innerText = isBatchPaused ? '继续' : '暂停';
-            showToast(isBatchPaused ? '已暂停后台批量标注' : '已恢复后台标注', 'info');
+            showToast(isBatchPaused ? '已暂停批量标注' : '已恢复批量标注', 'info');
             if(!isBatchPaused && !isBatchProcessing) startBatchQueue();
-        }
-
-        function retryUnannotatedPages() {
-            let resetCount = 0;
-            slides.forEach(s => {
-                if(s.status === 'error' || s.status === 'pending') {
-                    s.status = 'pending';
-                    s.retryCount = 0;
-                    resetCount++;
-                }
-            });
-            if(resetCount > 0) {
-                isBatchPaused = false;
-                document.getElementById('pause-btn-label').innerText = '暂停';
-                showToast(`已重新加入 ${resetCount} 个未标注页面`, 'success');
-                startBatchQueue();
-            } else {
-                showToast('所有页面均已成功标注！', 'success');
-            }
         }
 
         function forceReannotateCurrentSlide() {
             if(currentSlideIndex >= 0) {
                 slides[currentSlideIndex].status = 'pending';
-                activePriorityIndex = currentSlideIndex;
-                showToast(`正在优先强制重新标注第 ${currentSlideIndex + 1} 页`, 'info');
-                startBatchQueue();
+                annotateCurrentSlide();
             }
         }
 
         async function startBatchQueue() {
             if (!apiKey) {
-                updateStatusBar('请设置 API Key 以开启自动批量标注');
+                showToast('请先配置 API Key 以使用批量标注', 'warning');
+                toggleSettings();
                 return;
             }
-            if (isBatchProcessing || isBatchPaused) return;
+            if (isBatchProcessing) return;
             isBatchProcessing = true;
+            isBatchPaused = false;
+            document.getElementById('btn-toggle-pause').classList.remove('hidden');
+
+            showToast('开始全自动顺序标注...', 'info');
 
             while (!isBatchPaused) {
-                // Find next slide to process (Priority to user's currently active view)
-                let targetIndex = -1;
-                
-                if (activePriorityIndex !== -1 && slides[activePriorityIndex] && slides[activePriorityIndex].status === 'pending') {
-                    targetIndex = activePriorityIndex;
-                    activePriorityIndex = -1; // Reset priority
-                } else {
-                    targetIndex = slides.findIndex(s => s.status === 'pending');
-                }
+                const targetIndex = slides.findIndex(s => s.status === 'pending');
+                if (targetIndex === -1) break;
 
-                if (targetIndex === -1) {
-                    // All pages processed!
-                    break;
-                }
-
-                updateStatusBar(`AI 后台批量标注中 (${targetIndex + 1}/${slides.length})...`, true);
-                
-                const success = await annotateSingleSlide(targetIndex);
-                
-                // Adaptive delay to protect against Gemini API Rate Limits (429)
+                updateStatusBar(`AI 批量标注中 (${targetIndex + 1}/${slides.length})...`, true);
+                await annotateSingleSlide(targetIndex);
                 await new Promise(r => setTimeout(r, batchIntervalDelay));
             }
 
             isBatchProcessing = false;
+            document.getElementById('btn-toggle-pause').classList.add('hidden');
             updateBatchProgressUI();
-            
-            const unannotated = slides.filter(s => s.status === 'pending' || s.status === 'error').length;
-            if(unannotated === 0 && slides.length > 0) {
-                updateStatusBar(`全套 ${slides.length} 页课件标注完毕！`);
-            } else if (isBatchPaused) {
-                updateStatusBar(`后台标注已暂停`);
-            }
+            updateStatusBar('批量标注任务结束');
         }
 
         async function annotateSingleSlide(index) {
             const slide = slides[index];
-            if (!slide || slide.status !== 'pending') return false;
+            if (!slide) return false;
 
             slide.status = 'processing';
             renderSlideList();
-
             if (currentSlideIndex === index) {
-                document.getElementById('slide-text').innerHTML = '<div class="text-slate-400 flex items-center gap-2 text-xs"><div class="loader"></div> AI 正在智能识别本页专业术语与公式...</div>';
+                renderCurrentSlideContent(slide);
             }
 
             try {
@@ -718,10 +704,8 @@
                 const hasSufficientText = slide.text && slide.text.trim().length > 40;
 
                 if (hasSufficientText) {
-                    // Text-only mode: 95% bandwidth savings for 100+ slides
                     parts.push({ text: `Slide Content:\n${slide.text}` });
                 } else if (slide.imageUrl.startsWith('data:image')) {
-                    // Vision fallback for images/scans
                     const base64Data = slide.imageUrl.split(',')[1];
                     const mimeType = slide.imageUrl.split(';')[0].split(':')[1];
                     parts.push({ inlineData: { mimeType: mimeType, data: base64Data } });
@@ -751,19 +735,15 @@
                 });
 
                 if (response.status === 429) {
-                    // Rate Limit Exceeded - Increase delay and retry
-                    console.warn(`Rate limit hit on slide ${index + 1}. Auto backing off...`);
                     slide.status = 'pending';
-                    batchIntervalDelay = Math.min(batchIntervalDelay + 2000, 10000);
-                    showToast(`触及 API 速率限制，智能降速重试中...`, 'warning');
-                    await new Promise(r => setTimeout(r, 6000));
+                    showToast(`触及 API 频次限制，智能稍候...`, 'warning');
+                    await new Promise(r => setTimeout(r, 5000));
                     return false;
                 }
 
                 if (!response.ok) {
                     const errJson = await response.json().catch(() => ({}));
-                    const msg = errJson.error?.message || `HTTP ${response.status}`;
-                    throw new Error(msg);
+                    throw new Error(errJson.error?.message || `HTTP ${response.status}`);
                 }
 
                 const data = await response.json();
@@ -776,33 +756,23 @@
                 slide.text = result.cleaned_text || slide.text;
                 slide.vocab = result.vocab || [];
                 slide.status = 'done';
-                
-                if(batchIntervalDelay > 2500) batchIntervalDelay -= 500;
 
                 if (currentSlideIndex === index) {
-                    updateSlideTextUI(slide);
-                    renderVocabTab(slide);
+                    renderCurrentSlideContent(slide);
                 }
                 renderSlideList();
                 return true;
 
             } catch (error) {
                 console.error(`Slide ${index + 1} processing error:`, error);
-                slide.retryCount = (slide.retryCount || 0) + 1;
-                
-                let errReason = error.message || '网络连接异常';
-                if (error.name === 'TypeError' && error.message.includes('fetch')) {
-                    errReason = '网络无法连接到 Google (请开启网络代理或配置反代地址)';
-                }
-
-                if (slide.retryCount < 2) {
-                    slide.status = 'pending';
-                } else {
-                    slide.status = 'error';
-                }
+                slide.status = 'error';
                 
                 if (currentSlideIndex === index) {
-                    document.getElementById('slide-text').innerHTML = `<div class="text-red-500 text-xs p-3 bg-red-50 rounded-lg border border-red-100">❌ 标注失败: ${errReason}<br/><span class="text-slate-500 text-[11px] mt-1 block">请点击右上角 ⚙️ 设置进行【API & 网络连通性测试】。</span></div>`;
+                    document.getElementById('slide-text').innerHTML = `
+                        <div class="text-red-600 text-xs p-4 bg-red-50 rounded-xl border border-red-200">
+                            ❌ 标注失败: ${error.message}<br/>
+                            <button onclick="annotateCurrentSlide()" class="mt-2 text-violet-700 underline font-semibold">点击重试</button>
+                        </div>`;
                 }
                 renderSlideList();
                 return false;
@@ -838,7 +808,7 @@
             const container = document.getElementById('vocab-list');
             
             if (!slide.vocab || slide.vocab.length === 0) {
-                container.innerHTML = '<div class="text-center text-slate-400 py-10 text-xs">未提取到专业词汇</div>';
+                container.innerHTML = '<div class="text-center text-slate-400 py-10 text-xs">当前页暂未标注词汇，点击“标注本页”即可识别</div>';
                 return;
             }
 
