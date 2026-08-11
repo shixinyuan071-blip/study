@@ -3,16 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SlidePrep 课前通 - 智能课件预习与标注</title>
+    <title>SlidePrep 课前通 - 100+页大件高效智能标注系统</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     
+    <!-- PDF.js Engine -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     
+    <!-- KaTeX for Math & Chem Formula Rendering -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
 
+    <!-- Phosphor Icons & Marked MD Parser -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
@@ -21,16 +24,14 @@
         
         body {
             font-family: 'Inter', system-ui, sans-serif;
-            background-color: #f8fafc; /* Slate 50 */
+            background-color: #f8fafc;
         }
         
-        /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
-        /* Highlight classes */
         .term-highlight {
             border-bottom: 2px dashed #8b5cf6;
             background-color: rgba(139, 92, 246, 0.1);
@@ -43,7 +44,6 @@
             background-color: rgba(139, 92, 246, 0.25);
         }
 
-        /* 3D Flashcard */
         .flashcard-inner {
             transition: transform 0.6s;
             transform-style: preserve-3d;
@@ -60,18 +60,16 @@
             transform: rotateY(180deg);
         }
 
-        /* Loading Spinner */
         .loader {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #8b5cf6;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #8b5cf6;
             border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            animation: spin 1s linear infinite;
+            width: 14px;
+            height: 14px;
+            animation: spin 0.8s linear infinite;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         
-        /* Toast Animation */
         @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         .toast-enter { animation: slideUp 0.3s ease-out forwards; }
     </style>
@@ -80,25 +78,25 @@
 
     <header class="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-6 z-20 shrink-0">
         <div class="flex items-center gap-2">
-            <div class="w-8 h-8 bg-violet-600 rounded-lg flex items-center justify-center text-white font-bold text-xl">
+            <div class="w-8 h-8 bg-violet-600 rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-sm">
                 <i class="ph-bold ph-graduation-cap"></i>
             </div>
-            <h1 class="text-lg font-bold text-slate-800 tracking-tight hidden sm:block">SlidePrep <span class="font-normal text-slate-500 text-sm">课前通</span></h1>
+            <h1 class="text-base font-bold text-slate-800 tracking-tight hidden sm:block">SlidePrep <span class="font-semibold text-violet-600 text-xs px-2 py-0.5 bg-violet-50 rounded-full border border-violet-100">大课件极速版</span></h1>
         </div>
         
         <div class="flex-1 max-w-xl mx-4 flex items-center justify-center">
-            <div id="status-bar" class="text-sm font-medium text-slate-500 flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-full">
-                <i class="ph ph-info"></i> 请导入 PDF 课件或图片开始预习
+            <div id="status-bar" class="text-xs sm:text-sm font-medium text-slate-600 flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-full truncate">
+                <i class="ph-bold ph-info text-violet-600"></i> 请导入 PDF 或图片（支持 100+ 页大型课件全自动连续标注）
             </div>
         </div>
 
         <div class="flex items-center gap-3">
-            <label class="cursor-pointer bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium py-1.5 px-4 rounded-full transition-colors flex items-center gap-2 shadow-sm">
+            <label class="cursor-pointer bg-violet-600 hover:bg-violet-700 text-white text-xs sm:text-sm font-medium py-1.5 px-3.5 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm">
                 <i class="ph-bold ph-upload-simple"></i>
-                <span class="hidden sm:inline">导入 PDF / 图片</span>
+                <span>导入课件</span>
                 <input type="file" id="file-upload" class="hidden" accept=".pdf,image/png,image/jpeg,image/webp" multiple>
             </label>
-            <button onclick="toggleSettings()" class="w-8 h-8 flex items-center justify-center text-slate-500 hover:bg-slate-100 rounded-full transition-colors">
+            <button onclick="toggleSettings()" class="w-8 h-8 flex items-center justify-center text-slate-500 hover:bg-slate-100 rounded-lg transition-colors" title="API Key 设置">
                 <i class="ph-bold ph-gear text-lg"></i>
             </button>
         </div>
@@ -106,74 +104,98 @@
 
     <main class="flex-1 flex overflow-hidden">
         
-        <aside class="w-20 sm:w-64 bg-white border-r border-slate-200 flex flex-col h-full shrink-0">
-            <div class="p-3 border-b border-slate-100 text-xs font-semibold text-slate-400 uppercase tracking-wider hidden sm:block">
-                课件大纲 (Slides)
+        <!-- Left Sidebar: Slides Overview & Batch Control -->
+        <aside class="w-24 sm:w-64 bg-white border-r border-slate-200 flex flex-col h-full shrink-0">
+            
+            <!-- Batch Progress Control Panel -->
+            <div class="p-3 border-b border-slate-200 bg-slate-50 flex flex-col gap-2">
+                <div class="flex items-center justify-between text-xs font-semibold text-slate-600">
+                    <span>标注进度 (<span id="batch-progress-text">0/0</span>)</span>
+                    <span id="batch-speed-tag" class="text-[10px] text-violet-600 font-normal"></span>
+                </div>
+                <!-- Progress Bar -->
+                <div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                    <div id="batch-progress-bar" class="bg-violet-600 h-full w-0 transition-all duration-300"></div>
+                </div>
+                <!-- Batch Actions -->
+                <div class="flex items-center justify-between pt-1 text-xs">
+                    <button id="btn-toggle-pause" onclick="toggleBatchPause()" class="text-slate-600 hover:text-violet-600 font-medium flex items-center gap-1 hidden">
+                        <i class="ph-bold ph-pause"></i> <span id="pause-btn-label">暂停</span>
+                    </button>
+                    <button onclick="retryUnannotatedPages()" class="text-violet-600 hover:text-violet-800 font-medium ml-auto flex items-center gap-1">
+                        <i class="ph-bold ph-arrow-clockwise"></i> 缺漏页补标
+                    </button>
+                </div>
             </div>
+
+            <!-- Slide Thumbnail List -->
             <div id="slide-list" class="flex-1 overflow-y-auto p-2 space-y-2">
-                <!-- Slides will be injected here -->
+                <!-- Slide cards injected here -->
             </div>
         </aside>
 
+        <!-- Center Display Area -->
         <section class="flex-1 flex flex-col h-full bg-slate-50 relative overflow-hidden">
-            <!-- Header for current slide -->
-            <div class="h-12 bg-white/80 backdrop-blur-sm border-b border-slate-200 flex items-center justify-between px-4 absolute top-0 w-full z-10">
-                <div class="flex gap-2 text-slate-500 text-sm">
-                    <button onclick="prevSlide()" class="hover:text-slate-800 flex items-center gap-1"><i class="ph-bold ph-caret-left"></i> 上一页</button>
-                    <span id="page-indicator" class="font-medium text-slate-700">0 / 0</span>
-                    <button onclick="nextSlide()" class="hover:text-slate-800 flex items-center gap-1">下一页 <i class="ph-bold ph-caret-right"></i></button>
+            <!-- Header bar for current slide -->
+            <div class="h-11 bg-white/90 backdrop-blur-sm border-b border-slate-200 flex items-center justify-between px-4 absolute top-0 w-full z-10">
+                <div class="flex gap-3 text-slate-600 text-xs sm:text-sm">
+                    <button onclick="prevSlide()" class="hover:text-slate-900 flex items-center gap-1 font-medium"><i class="ph-bold ph-caret-left"></i> 上一页</button>
+                    <span id="page-indicator" class="font-semibold text-slate-700">0 / 0</span>
+                    <button onclick="nextSlide()" class="hover:text-slate-900 flex items-center gap-1 font-medium">下一页 <i class="ph-bold ph-caret-right"></i></button>
                 </div>
-                <div class="flex gap-3">
-                    <button onclick="speakSlideText()" class="text-sm flex items-center gap-1 text-slate-500 hover:text-violet-600 transition-colors">
+                <div class="flex gap-3 items-center">
+                    <button onclick="forceReannotateCurrentSlide()" class="text-xs text-slate-500 hover:text-violet-600 flex items-center gap-1">
+                        <i class="ph-bold ph-lightning"></i> 重新标本页
+                    </button>
+                    <button onclick="speakSlideText()" class="text-xs sm:text-sm flex items-center gap-1 text-slate-600 hover:text-violet-600 font-medium transition-colors">
                         <i class="ph-bold ph-speaker-high"></i> 朗读本页
                     </button>
                 </div>
             </div>
 
-            <!-- Slide Content Scroll Area -->
-            <div id="slide-content-area" class="flex-1 overflow-y-auto pt-16 pb-8 px-4 sm:px-8 flex flex-col items-center">
+            <div id="slide-content-area" class="flex-1 overflow-y-auto pt-14 pb-8 px-4 sm:px-8 flex flex-col items-center">
                 
-                <!-- Image Viewer -->
-                <div class="w-full max-w-4xl bg-white shadow-sm rounded-xl overflow-hidden border border-slate-200 mb-6 flex justify-center">
-                    <img id="current-slide-img" src="" class="max-w-full h-auto object-contain hidden" style="max-height: 60vh;" alt="Slide Image">
+                <!-- Slide Image Container -->
+                <div class="w-full max-w-4xl bg-white shadow-sm rounded-xl overflow-hidden border border-slate-200 mb-5 flex justify-center">
+                    <img id="current-slide-img" src="" class="max-w-full h-auto object-contain hidden" style="max-height: 55vh;" alt="Slide Image">
                     <div id="slide-placeholder" class="w-full h-64 flex flex-col items-center justify-center text-slate-400 bg-slate-50">
-                        <i class="ph-duotone ph-file-pdf text-4xl mb-2"></i>
-                        <p class="text-sm">尚未导入内容</p>
+                        <i class="ph-duotone ph-file-pdf text-4xl mb-2 text-violet-400"></i>
+                        <p class="text-sm">支持导入 100+ 页大型 PDF/图片课件，AI 将全自动顺次标注</p>
                     </div>
                 </div>
 
-                <!-- Text Content & OCR Results -->
-                <div class="w-full max-w-4xl bg-white shadow-sm rounded-xl border border-slate-200 p-6 sm:p-8">
-                    <h2 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                        <i class="ph-duotone ph-text-aa text-violet-600 text-xl"></i> 原文解析与识别
+                <!-- Text & LaTeX Formulas -->
+                <div class="w-full max-w-4xl bg-white shadow-sm rounded-xl border border-slate-200 p-5 sm:p-7">
+                    <h2 class="text-base font-bold text-slate-800 mb-3 flex items-center gap-2">
+                        <i class="ph-bold ph-text-aa text-violet-600 text-lg"></i> 原文解析与专业词汇高亮
                     </h2>
-                    <div id="slide-text" class="text-slate-600 leading-relaxed text-[15px] space-y-4">
-                        请从上方任务栏上传 PDF 或图片，系统将自动识别内容。
+                    <div id="slide-text" class="text-slate-600 leading-relaxed text-[15px] space-y-3 min-h-[100px]">
+                        请上传课件文件，系统将自动识别全书并批量标注专业词汇。
                     </div>
                 </div>
             </div>
         </section>
 
+        <!-- Right Sidebar (Tools) -->
         <aside class="w-full sm:w-80 bg-white border-l border-slate-200 flex flex-col h-full absolute sm:relative right-0 transform translate-x-full sm:translate-x-0 transition-transform z-30" id="right-sidebar">
-            <!-- Mobile Close Button -->
             <button onclick="toggleMobileSidebar()" class="sm:hidden absolute -left-10 top-20 bg-white p-2 rounded-l-lg shadow-md border border-r-0 border-slate-200">
                 <i class="ph-bold ph-caret-left text-slate-600"></i>
             </button>
 
             <!-- Tabs -->
             <div class="flex border-b border-slate-200 px-2 pt-2 gap-1 shrink-0 bg-slate-50">
-                <button onclick="switchTab('vocab')" id="tab-btn-vocab" class="tab-btn flex-1 pb-2 text-sm font-medium border-b-2 border-violet-600 text-violet-700">词汇 (<span id="vocab-count">0</span>)</button>
-                <button onclick="switchTab('flashcard')" id="tab-btn-flashcard" class="tab-btn flex-1 pb-2 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-700">背词卡</button>
-                <button onclick="switchTab('chat')" id="tab-btn-chat" class="tab-btn flex-1 pb-2 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-700">AI助教</button>
+                <button onclick="switchTab('vocab')" id="tab-btn-vocab" class="tab-btn flex-1 pb-2 text-xs font-bold border-b-2 border-violet-600 text-violet-700">词汇 (<span id="vocab-count">0</span>)</button>
+                <button onclick="switchTab('flashcard')" id="tab-btn-flashcard" class="tab-btn flex-1 pb-2 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700">背词卡</button>
+                <button onclick="switchTab('chat')" id="tab-btn-chat" class="tab-btn flex-1 pb-2 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700">AI助教</button>
             </div>
 
-            <!-- Tab Content Area -->
+            <!-- Tab Content -->
             <div class="flex-1 overflow-y-auto p-4 bg-slate-50/50">
                 
                 <!-- Vocab Tab -->
                 <div id="tab-vocab" class="space-y-3">
-                    <div id="vocab-list" class="text-sm text-slate-500 text-center mt-10">
-                        正在等待内容分析...
+                    <div id="vocab-list" class="text-xs text-slate-400 text-center mt-10">
+                        正在等待分析...
                     </div>
                 </div>
 
@@ -181,38 +203,36 @@
                 <div id="tab-flashcard" class="hidden h-full flex flex-col items-center justify-center">
                     <div id="flashcard-container" class="w-full aspect-[4/3] relative perspective-1000 hidden cursor-pointer" onclick="flipCard()">
                         <div class="flashcard w-full h-full relative flashcard-inner">
-                            <!-- Front -->
                             <div class="flashcard-front bg-white border-2 border-violet-100 rounded-2xl shadow-sm flex flex-col items-center justify-center p-6 text-center">
-                                <span class="text-xs font-semibold text-violet-500 uppercase tracking-widest mb-4">Click to flip</span>
-                                <h3 id="fc-word" class="text-3xl font-bold text-slate-800 mb-2">Word</h3>
-                                <p id="fc-phonetic" class="text-slate-500 font-mono">/wɜːrd/</p>
+                                <span class="text-[10px] font-semibold text-violet-500 uppercase tracking-widest mb-3">点击卡片翻面</span>
+                                <h3 id="fc-word" class="text-2xl font-bold text-slate-800 mb-2">Word</h3>
+                                <p id="fc-phonetic" class="text-xs text-slate-400 font-mono">/wɜːrd/</p>
                             </div>
-                            <!-- Back -->
                             <div class="flashcard-back bg-violet-600 rounded-2xl shadow-sm flex flex-col items-center justify-center p-6 text-center text-white">
-                                <h3 id="fc-translation" class="text-2xl font-bold mb-4">翻译</h3>
-                                <p id="fc-context" class="text-sm text-violet-100 italic">"Context sentence goes here."</p>
+                                <h3 id="fc-translation" class="text-xl font-bold mb-3">翻译</h3>
+                                <p id="fc-context" class="text-xs text-violet-100 italic">"Context sentence goes here."</p>
                             </div>
                         </div>
                     </div>
                     <div id="fc-controls" class="flex gap-4 mt-6 hidden">
                         <button onclick="prevCard()" class="p-2 rounded-full bg-white shadow hover:bg-slate-50 text-slate-600"><i class="ph-bold ph-arrow-left"></i></button>
-                        <span id="fc-indicator" class="flex items-center text-sm font-medium text-slate-500">1 / 1</span>
+                        <span id="fc-indicator" class="flex items-center text-xs font-medium text-slate-500">1 / 1</span>
                         <button onclick="nextCard()" class="p-2 rounded-full bg-white shadow hover:bg-slate-50 text-slate-600"><i class="ph-bold ph-arrow-right"></i></button>
                     </div>
-                    <div id="fc-empty" class="text-sm text-slate-500 text-center">当前页面暂无提取的专业词汇</div>
+                    <div id="fc-empty" class="text-xs text-slate-400 text-center">当前页面暂无专词</div>
                 </div>
 
                 <!-- Chat Tab -->
                 <div id="tab-chat" class="hidden h-full flex flex-col">
-                    <div id="chat-messages" class="flex-1 overflow-y-auto space-y-4 mb-4 text-sm">
+                    <div id="chat-messages" class="flex-1 overflow-y-auto space-y-3 mb-3 text-xs">
                         <div class="bg-violet-50 border border-violet-100 rounded-lg p-3 text-violet-800">
-                            👋 我是你的 AI 助教。关于当前页面的公式、概念或翻译有任何疑问，随时问我！
+                            👋 我是你的 AI 预习助教。对当前 PPT 中的公式或概念有任何问题，随时提问！
                         </div>
                     </div>
                     <div class="shrink-0 relative">
-                        <input type="text" id="chat-input" placeholder="输入问题，按回车发送..." class="w-full bg-white border border-slate-300 rounded-lg pl-3 pr-10 py-2.5 text-sm focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500" onkeypress="handleChatEnter(event)">
-                        <button onclick="sendChatMessage()" class="absolute right-2 top-2 text-violet-600 hover:text-violet-800 p-1">
-                            <i class="ph-bold ph-paper-plane-right"></i>
+                        <input type="text" id="chat-input" placeholder="针对本页提问，回车发送..." class="w-full bg-white border border-slate-300 rounded-lg pl-3 pr-10 py-2 text-xs focus:outline-none focus:border-violet-500" onkeypress="handleChatEnter(event)">
+                        <button onclick="sendChatMessage()" class="absolute right-2 top-2 text-violet-600 hover:text-violet-800 p-0.5">
+                            <i class="ph-bold ph-paper-plane-right text-sm"></i>
                         </button>
                     </div>
                 </div>
@@ -223,50 +243,52 @@
 
     <!-- Settings Modal -->
     <div id="settings-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center z-50">
-        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 transform transition-all">
-            <div class="flex justify-between items-center mb-6">
-                <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
-                    <i class="ph-duotone ph-gear text-violet-600"></i> 系统设置
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+            <div class="flex justify-between items-center mb-5">
+                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <i class="ph-bold ph-gear text-violet-600"></i> 系统设置
                 </h3>
-                <button onclick="toggleSettings()" class="text-slate-400 hover:text-slate-600"><i class="ph-bold ph-x"></i></button>
+                <button onclick="toggleSettings()" class="text-slate-400 hover:text-slate-600"><i class="ph-bold ph-x text-lg"></i></button>
             </div>
             
             <div class="space-y-4">
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">Gemini API Key</label>
-                    <input type="password" id="api-key-input" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500" placeholder="AIzaSy...">
-                    <p class="text-xs text-slate-500 mt-2">用于提供 AI 解析、标注与答疑功能。<a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-violet-600 hover:underline">获取免费Key</a></p>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1.5">Gemini API Key</label>
+                    <input type="password" id="api-key-input" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-violet-500" placeholder="AIzaSy...">
+                    <p class="text-[11px] text-slate-400 mt-2">支持多页连续标注与防限流控制。<a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-violet-600 hover:underline">免费获取 API Key</a></p>
                 </div>
             </div>
             
-            <div class="mt-8 flex justify-end gap-3">
-                <button onclick="toggleSettings()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg">取消</button>
-                <button onclick="saveSettings()" class="px-4 py-2 text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 rounded-lg">保存设置</button>
+            <div class="mt-6 flex justify-end gap-2">
+                <button onclick="toggleSettings()" class="px-3.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg">取消</button>
+                <button onclick="saveSettings()" class="px-3.5 py-1.5 text-xs font-medium text-white bg-violet-600 hover:bg-violet-700 rounded-lg shadow-sm">保存设置</button>
             </div>
         </div>
     </div>
 
-    <!-- Toast Container -->
     <div id="toast-container" class="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50 flex flex-col gap-2"></div>
 
     <script>
-        // Set up PDF.js worker
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-        // App State
-        let slides = []; // { id, imageUrl, text, status: 'pending'|'processing'|'done', vocab: [], aiSummary: '' }
+        // State
+        let slides = []; 
         let currentSlideIndex = -1;
         let apiKey = localStorage.getItem('slideprep_gemini_key') || '';
         let flashcardIndex = 0;
+        
+        // Batch Controller State for Large Decks (100+ pages)
+        let isBatchProcessing = false;
+        let isBatchPaused = false;
+        let batchIntervalDelay = 2500; // 2.5s pacing to respect API limits
+        let activePriorityIndex = -1;  // Instant priority jump for current slide
 
-        // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             if(!apiKey) {
-                showToast('请在设置中配置 Gemini API Key 以启用 AI 功能', 'warning');
+                showToast('请在右上角设置中配置 Gemini API Key 以开启自动标注', 'warning');
             }
         });
 
-        // Toast Notification System
         function showToast(message, type = 'info') {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
@@ -277,8 +299,8 @@
             if(type === 'error') { bgClass = 'bg-red-600'; icon = 'ph-warning-circle'; }
             if(type === 'warning') { bgClass = 'bg-amber-500'; icon = 'ph-warning'; }
 
-            toast.className = `${bgClass} text-white px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium flex items-center gap-2 toast-enter`;
-            toast.innerHTML = `<i class="ph-bold ${icon} text-lg"></i> ${message}`;
+            toast.className = `${bgClass} text-white px-3.5 py-2 rounded-lg shadow-lg text-xs font-medium flex items-center gap-2 toast-enter`;
+            toast.innerHTML = `<i class="ph-bold ${icon} text-base"></i> ${message}`;
             
             container.appendChild(toast);
             setTimeout(() => {
@@ -286,10 +308,9 @@
                 toast.style.transform = 'translateY(100%)';
                 toast.style.transition = 'all 0.3s ease-in';
                 setTimeout(() => toast.remove(), 300);
-            }, 3000);
+            }, 3500);
         }
 
-        // Settings Logic
         function toggleSettings() {
             const modal = document.getElementById('settings-modal');
             if(modal.classList.contains('hidden')) {
@@ -301,23 +322,20 @@
                 modal.classList.remove('flex');
             }
         }
+
         function saveSettings() {
             const key = document.getElementById('api-key-input').value.trim();
             if(key) {
                 apiKey = key;
                 localStorage.setItem('slideprep_gemini_key', apiKey);
-                showToast('设置已保存', 'success');
+                showToast('API Key 保存成功！', 'success');
                 toggleSettings();
-                // Trigger analysis on current slide if it was pending due to no key
-                if(currentSlideIndex >= 0 && slides[currentSlideIndex].status === 'pending') {
-                    triggerAutoAnnotation(currentSlideIndex);
-                }
+                if(slides.length > 0) startBatchQueue();
             } else {
                 showToast('API Key 不能为空', 'error');
             }
         }
 
-        // UI Tab Switching
         function switchTab(tabName) {
             ['vocab', 'flashcard', 'chat'].forEach(name => {
                 document.getElementById(`tab-${name}`).classList.add('hidden');
@@ -334,14 +352,13 @@
         }
 
         function toggleMobileSidebar() {
-            const sidebar = document.getElementById('right-sidebar');
-            sidebar.classList.toggle('translate-x-full');
+            document.getElementById('right-sidebar').classList.toggle('translate-x-full');
         }
 
         function updateStatusBar(msg, isLoading = false) {
             const bar = document.getElementById('status-bar');
             bar.innerHTML = isLoading 
-                ? `<div class="loader mr-2 w-4 h-4 border-2"></div> ${msg}`
+                ? `<div class="loader mr-1.5"></div> ${msg}`
                 : `<i class="ph-bold ph-info text-violet-600"></i> ${msg}`;
         }
 
@@ -351,25 +368,27 @@
             
             slides = [];
             currentSlideIndex = -1;
-            updateStatusBar('正在解析文件，请稍候...', true);
+            isBatchProcessing = false;
+            isBatchPaused = false;
+            
+            updateStatusBar('正在解包并构建文件大纲...', true);
             
             for (const file of files) {
                 if (file.type === 'application/pdf') {
                     await parsePDF(file);
                 } else if (file.type.startsWith('image/')) {
                     await parseImage(file);
-                } else {
-                    showToast(`不支持的文件格式: ${file.name} (请上传PDF或图片)`, 'error');
                 }
             }
             
             if (slides.length > 0) {
                 renderSlideList();
                 goToSlide(0);
-                showToast('文件导入成功！', 'success');
-                updateStatusBar('解析完成，AI正在后台静默标注中...');
+                showToast(`课件导入成功！共 ${slides.length} 页，启动高效后台标注`, 'success');
+                document.getElementById('btn-toggle-pause').classList.remove('hidden');
+                startBatchQueue();
             } else {
-                updateStatusBar('文件解析失败');
+                updateStatusBar('文件导入失败，请检查格式');
             }
         });
 
@@ -383,30 +402,30 @@
                     const textContent = await page.getTextContent();
                     const text = textContent.items.map(item => item.str).join(' ').trim();
                     
-                    // Optimized canvas rendering for faster load and smaller payload
-                    const viewport = page.getViewport({ scale: 1.0 }); // 降低缩放率
+                    // Optimized Scale for 100+ pages memory conservation
+                    const viewport = page.getViewport({ scale: 0.8 });
                     const canvas = document.createElement('canvas');
                     const context = canvas.getContext('2d');
                     canvas.height = viewport.height;
                     canvas.width = viewport.width;
                     await page.render({ canvasContext: context, viewport: viewport }).promise;
                     
-                    // Compress image heavily
-                    const imageUrl = canvas.toDataURL('image/jpeg', 0.6);
+                    // Low JPEG Quality for memory reduction
+                    const imageUrl = canvas.toDataURL('image/jpeg', 0.4);
                     
                     slides.push({
-                        id: `pdf-${file.name}-page-${i}`,
+                        id: `pdf-${file.name}-p${i}`,
                         title: `Page ${i}`,
                         imageUrl: imageUrl,
                         text: text,
                         status: 'pending',
-                        vocab: [],
-                        aiSummary: ''
+                        retryCount: 0,
+                        vocab: []
                     });
                 }
             } catch (error) {
-                console.error("PDF Parsing error:", error);
-                showToast('读取 PDF 失败', 'error');
+                console.error("PDF Parsing Error:", error);
+                showToast('读取 PDF 失败，请检查文件权限', 'error');
             }
         }
 
@@ -418,10 +437,10 @@
                         id: `img-${file.name}-${Date.now()}`,
                         title: file.name,
                         imageUrl: e.target.result,
-                        text: '', // Images rely on Vision AI OCR
+                        text: '',
                         status: 'pending',
-                        vocab: [],
-                        aiSummary: ''
+                        retryCount: 0,
+                        vocab: []
                     });
                     resolve();
                 };
@@ -431,16 +450,46 @@
 
         function renderSlideList() {
             const list = document.getElementById('slide-list');
-            list.innerHTML = slides.map((slide, index) => `
-                <div onclick="goToSlide(${index})" class="group cursor-pointer rounded-lg border-2 ${index === currentSlideIndex ? 'border-violet-500 bg-violet-50' : 'border-transparent hover:bg-slate-100'} p-2 transition-all">
-                    <div class="aspect-[4/3] bg-slate-200 rounded overflow-hidden mb-1 relative">
+            list.innerHTML = slides.map((slide, index) => {
+                let badge = '';
+                if(slide.status === 'done') {
+                    badge = `<div class="absolute top-1 right-1 bg-emerald-500 text-white text-[9px] px-1 rounded flex items-center gap-0.5"><i class="ph-bold ph-check"></i>已标</div>`;
+                } else if(slide.status === 'processing') {
+                    badge = `<div class="absolute top-1 right-1 bg-amber-500 text-white text-[9px] px-1 rounded flex items-center gap-1"><i class="ph-bold ph-spinner animate-spin"></i></div>`;
+                } else if(slide.status === 'error') {
+                    badge = `<div class="absolute top-1 right-1 bg-red-500 text-white text-[9px] px-1 rounded">未标</div>`;
+                }
+
+                return `
+                <div onclick="goToSlide(${index})" class="group cursor-pointer rounded-lg border-2 ${index === currentSlideIndex ? 'border-violet-500 bg-violet-50' : 'border-transparent hover:bg-slate-100'} p-1.5 transition-all">
+                    <div class="aspect-[4/3] bg-slate-200 rounded overflow-hidden relative">
                         <img src="${slide.imageUrl}" class="w-full h-full object-cover">
-                        ${slide.status === 'done' ? '<div class="absolute bottom-1 right-1 bg-emerald-500 text-white text-[10px] px-1 rounded flex items-center gap-1"><i class="ph-bold ph-check"></i>已标</div>' : ''}
-                        ${slide.status === 'processing' ? '<div class="absolute bottom-1 right-1 bg-amber-500 text-white text-[10px] px-1 rounded"><i class="ph-bold ph-spinner animate-spin"></i></div>' : ''}
+                        ${badge}
                     </div>
-                    <div class="text-[11px] font-medium text-slate-600 text-center truncate sm:text-left">${index + 1}. ${slide.title}</div>
+                    <div class="text-[11px] font-medium text-slate-600 text-center truncate mt-1">${index + 1}. ${slide.title}</div>
                 </div>
-            `).join('');
+            `}).join('');
+
+            updateBatchProgressUI();
+        }
+
+        function updateBatchProgressUI() {
+            const total = slides.length;
+            if (total === 0) return;
+            
+            const completed = slides.filter(s => s.status === 'done').length;
+            const percent = Math.round((completed / total) * 100);
+            
+            document.getElementById('batch-progress-text').innerText = `${completed}/${total} (${percent}%)`;
+            document.getElementById('batch-progress-bar').style.width = `${percent}%`;
+            
+            if(completed === total) {
+                document.getElementById('batch-speed-tag').innerText = "✅ 全卷完成";
+            } else if (isBatchPaused) {
+                document.getElementById('batch-speed-tag').innerText = "⏸ 已暂停";
+            } else {
+                document.getElementById('batch-speed-tag').innerText = "⚡ 自动连续标注中";
+            }
         }
 
         function goToSlide(index) {
@@ -449,141 +498,230 @@
             
             const slide = slides[currentSlideIndex];
             
-            // Update UI
             document.getElementById('slide-placeholder').classList.add('hidden');
             const imgEl = document.getElementById('current-slide-img');
             imgEl.src = slide.imageUrl;
             imgEl.classList.remove('hidden');
             document.getElementById('page-indicator').innerText = `${currentSlideIndex + 1} / ${slides.length}`;
             
-            renderSlideList(); // Update highlight in sidebar
+            renderSlideList();
             
-            // Render Text/Vocab area based on status
             if(slide.status === 'done') {
                 updateSlideTextUI(slide);
                 renderVocabTab(slide);
-                updateStatusBar(`第 ${index + 1} 页分析完成`);
             } else if (slide.status === 'processing') {
-                document.getElementById('slide-text').innerHTML = '<div class="text-slate-400 flex items-center gap-2"><div class="loader"></div> AI 正在深度分析提取本页词汇...</div>';
-                document.getElementById('vocab-list').innerHTML = '<div class="text-center text-slate-400">分析中...</div>';
+                document.getElementById('slide-text').innerHTML = '<div class="text-slate-400 flex items-center gap-2"><div class="loader"></div> AI 正在智能提取本页专业术语与公式...</div>';
             } else {
-                // Pending - Auto trigger
-                document.getElementById('slide-text').innerText = slide.text || "准备使用 AI 识别图片内容...";
-                document.getElementById('vocab-list').innerHTML = '<div class="text-center text-slate-400">等待分析...</div>';
-                triggerAutoAnnotation(currentSlideIndex);
+                // Instantly prioritize current slide in batch queue!
+                activePriorityIndex = currentSlideIndex;
+                document.getElementById('slide-text').innerText = slide.text || "已将本页调整至优先标注队列...";
+                document.getElementById('vocab-list').innerHTML = '<div class="text-center text-slate-400 text-xs">排队中...</div>';
+                
+                // Wake up batch queue if idle
+                if(!isBatchProcessing) startBatchQueue();
             }
 
             flashcardIndex = 0;
             updateFlashcardUI();
             
-            // Clear chat for new slide
             document.getElementById('chat-messages').innerHTML = `
                 <div class="bg-violet-50 border border-violet-100 rounded-lg p-3 text-violet-800">
-                    👋 针对第 ${index + 1} 页，你有什么疑问吗？
+                    👋 针对第 ${index + 1} 页，你有任何疑问随时可以问我！
                 </div>`;
         }
 
         function prevSlide() { goToSlide(currentSlideIndex - 1); }
         function nextSlide() { goToSlide(currentSlideIndex + 1); }
 
-        async function triggerAutoAnnotation(index) {
-            const slide = slides[index];
+        function toggleBatchPause() {
+            isBatchPaused = !isBatchPaused;
+            document.getElementById('pause-btn-label').innerText = isBatchPaused ? '继续' : '暂停';
+            showToast(isBatchPaused ? '已暂停后台批量标注' : '已恢复后台标注', 'info');
+            if(!isBatchPaused && !isBatchProcessing) startBatchQueue();
+        }
+
+        function retryUnannotatedPages() {
+            let resetCount = 0;
+            slides.forEach(s => {
+                if(s.status === 'error' || s.status === 'pending') {
+                    s.status = 'pending';
+                    s.retryCount = 0;
+                    resetCount++;
+                }
+            });
+            if(resetCount > 0) {
+                isBatchPaused = false;
+                document.getElementById('pause-btn-label').innerText = '暂停';
+                showToast(`已重新加入 ${resetCount} 个未标注页面`, 'success');
+                startBatchQueue();
+            } else {
+                showToast('所有页面均已成功标注！', 'success');
+            }
+        }
+
+        function forceReannotateCurrentSlide() {
+            if(currentSlideIndex >= 0) {
+                slides[currentSlideIndex].status = 'pending';
+                activePriorityIndex = currentSlideIndex;
+                showToast(`正在优先强制重新标注第 ${currentSlideIndex + 1} 页`, 'info');
+                startBatchQueue();
+            }
+        }
+
+        async function startBatchQueue() {
             if (!apiKey) {
-                updateStatusBar('等待 API Key 配置以启动分析');
+                updateStatusBar('请设置 API Key 以开启自动批量标注');
                 return;
             }
-            if (slide.status !== 'pending') return;
-            
-            slide.status = 'processing';
-            renderSlideList();
-            goToSlide(index); // Refresh UI to show loading
-            updateStatusBar('AI 正在提取专业词汇与公式...');
+            if (isBatchProcessing || isBatchPaused) return;
+            isBatchProcessing = true;
 
-            try {
-                // Highly Optimized Payload
-                const parts = [];
-                // Include text if available
-                if (slide.text && slide.text.trim().length > 0) {
-                    parts.push({ text: `Content:\n${slide.text}` });
+            while (!isBatchPaused) {
+                // Find next slide to process (Priority to user's currently active view)
+                let targetIndex = -1;
+                
+                if (activePriorityIndex !== -1 && slides[activePriorityIndex] && slides[activePriorityIndex].status === 'pending') {
+                    targetIndex = activePriorityIndex;
+                    activePriorityIndex = -1; // Reset priority
+                } else {
+                    targetIndex = slides.findIndex(s => s.status === 'pending');
                 }
 
-                // MULTIMODAL OPTIMIZATION: Only send image if text is sparse (e.g. pure image or scanned PDF)
-                // This saves massive amount of data transfer and API processing time.
-                const hasEnoughText = slide.text.trim().length > 100;
-                if (!hasEnoughText && slide.imageUrl.startsWith('data:image')) {
+                if (targetIndex === -1) {
+                    // All pages processed!
+                    break;
+                }
+
+                updateStatusBar(`AI 后台批量标注中 (${targetIndex + 1}/${slides.length})...`, true);
+                
+                const success = await annotateSingleSlide(targetIndex);
+                
+                // Adaptive delay to protect against Gemini API Rate Limits (429)
+                await new Promise(r => setTimeout(r, batchIntervalDelay));
+            }
+
+            isBatchProcessing = false;
+            updateBatchProgressUI();
+            
+            const unannotated = slides.filter(s => s.status === 'pending' || s.status === 'error').length;
+            if(unannotated === 0 && slides.length > 0) {
+                updateStatusBar(`全套 ${slides.length} 页课件标注完毕！`);
+            } else if (isBatchPaused) {
+                updateStatusBar(`后台标注已暂停`);
+            }
+        }
+
+        async function annotateSingleSlide(index) {
+            const slide = slides[index];
+            if (!slide || slide.status !== 'pending') return false;
+
+            slide.status = 'processing';
+            renderSlideList();
+
+            if (currentSlideIndex === index) {
+                document.getElementById('slide-text').innerHTML = '<div class="text-slate-400 flex items-center gap-2 text-xs"><div class="loader"></div> AI 正在智能识别本页专业术语与公式...</div>';
+            }
+
+            try {
+                const parts = [];
+                const hasSufficientText = slide.text && slide.text.trim().length > 40;
+
+                if (hasSufficientText) {
+                    // Text-only mode: 95% bandwidth savings for 100+ slides
+                    parts.push({ text: `Slide Content:\n${slide.text}` });
+                } else if (slide.imageUrl.startsWith('data:image')) {
+                    // Vision fallback for images/scans
                     const base64Data = slide.imageUrl.split(',')[1];
                     const mimeType = slide.imageUrl.split(';')[0].split(':')[1];
                     parts.push({ inlineData: { mimeType: mimeType, data: base64Data } });
                 }
 
-                const systemPrompt = `You are a university academic assistant. Analyze the slide content/image.
-1. Extract 3-8 key professional academic vocabulary words or phrases (English for Specific Purposes).
-2. For each, provide its exact phonetic symbol, Chinese translation in this academic context, and a short English example sentence derived from or relevant to the slide.
-3. If the slide contains Math or Chemistry formulas, extract them cleanly using standard LaTeX format (e.g., $$E=mc^2$$) to prevent garbled OCR text.
-4. Output strictly in JSON format:
+                const systemPrompt = `You are a university academic assistant. Analyze this slide.
+1. Identify 3-8 key professional academic terms (ESP).
+2. For each, give phonetic symbol, precise Chinese translation, and short context usage.
+3. Keep clean LaTeX for formulas ($E=mc^2$).
+4. Return strictly JSON:
 {
-  "cleaned_text": "The full readable text of the slide. Use LaTeX for math/chem.",
+  "cleaned_text": "Readable text with LaTeX formulas",
   "vocab": [
-    {"word": "Resilience", "phonetic": "/rɪˈzɪliəns/", "translation": "韧性/恢复力", "context": "build organizational resilience", "level": "Hard"}
+    {"word": "Term", "phonetic": "/.../", "translation": "翻译", "context": "example"}
   ]
 }`;
-
-                const requestBody = {
-                    contents: [{ parts: parts }],
-                    systemInstruction: { parts: [{ text: systemPrompt }] },
-                    generationConfig: { responseMimeType: "application/json" }
-                };
 
                 const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(requestBody)
+                    body: JSON.stringify({
+                        contents: [{ parts: parts }],
+                        systemInstruction: { parts: [{ text: systemPrompt }] },
+                        generationConfig: { responseMimeType: "application/json" }
+                    })
                 });
 
-                if (!response.ok) throw new Error(`API Error: ${response.status}`);
-                
+                if (response.status === 429) {
+                    // Rate Limit Exceeded - Increase delay and retry
+                    console.warn(`Rate limit hit on slide ${index + 1}. Auto backing off...`);
+                    slide.status = 'pending';
+                    batchIntervalDelay = Math.min(batchIntervalDelay + 2000, 10000); // Backoff pacing up to 10s
+                    showToast(`触及 API 速率限制，智能降速重试中...`, 'warning');
+                    await new Promise(r => setTimeout(r, 8000));
+                    return false;
+                }
+
+                if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+
                 const data = await response.json();
                 let jsonText = data.candidates[0].content.parts[0].text;
-                // Clean potential markdown blocks
                 if (jsonText.startsWith('```json')) {
                     jsonText = jsonText.replace(/^```json/, '').replace(/```$/, '').trim();
                 }
                 const result = JSON.parse(jsonText);
 
-                slide.text = result.cleaned_text || slide.text; // Prefer AI cleaned text with LaTeX
+                slide.text = result.cleaned_text || slide.text;
                 slide.vocab = result.vocab || [];
                 slide.status = 'done';
+                
+                // Reset pacing gradually on success
+                if(batchIntervalDelay > 2500) batchIntervalDelay -= 500;
+
+                if (currentSlideIndex === index) {
+                    updateSlideTextUI(slide);
+                    renderVocabTab(slide);
+                }
+                renderSlideList();
+                return true;
 
             } catch (error) {
-                console.error("AI Annotation Error:", error);
-                slide.status = 'pending'; // Allow retry
-                showToast(`页面 ${index+1} 标注失败, 请检查网络或 API Key`, 'error');
-            }
-
-            // Update UI if we are still on this slide
-            if (currentSlideIndex === index) {
-                goToSlide(index);
-            } else {
-                renderSlideList(); // Update background status badge
+                console.error(`Slide ${index + 1} processing error:`, error);
+                slide.retryCount = (slide.retryCount || 0) + 1;
+                
+                if (slide.retryCount < 3) {
+                    slide.status = 'pending'; // Allow retry
+                } else {
+                    slide.status = 'error';
+                }
+                
+                if (currentSlideIndex === index) {
+                    document.getElementById('slide-text').innerHTML = `<div class="text-red-500 text-xs">标注失败，请检查网络或点击顶部“重新标本页”</div>`;
+                }
+                renderSlideList();
+                return false;
             }
         }
 
         function updateSlideTextUI(slide) {
             let htmlText = slide.text;
-            // 1. Highlight Vocab
             if (slide.vocab && slide.vocab.length > 0) {
                 slide.vocab.forEach(v => {
                     const regex = new RegExp(`(${v.word})`, 'gi');
                     htmlText = htmlText.replace(regex, `<span class="term-highlight" onclick="highlightClick('${v.word}')" title="${v.translation}">$1</span>`);
                 });
             }
-            // 2. Formatting newlines
             htmlText = htmlText.replace(/\n/g, '<br/>');
             
             const container = document.getElementById('slide-text');
             container.innerHTML = htmlText;
             
-            // 3. Render Math/Chem with KaTeX
             renderMathInElement(container, {
                 delimiters: [
                     {left: '$$', right: '$$', display: true},
@@ -600,7 +738,7 @@
             const container = document.getElementById('vocab-list');
             
             if (!slide.vocab || slide.vocab.length === 0) {
-                container.innerHTML = '<div class="text-center text-slate-400 py-10">未检测到高频专业词汇</div>';
+                container.innerHTML = '<div class="text-center text-slate-400 py-10 text-xs">未提取到专业词汇</div>';
                 return;
             }
 
@@ -608,26 +746,23 @@
                 <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm hover:shadow transition-shadow">
                     <div class="flex justify-between items-start mb-1">
                         <div>
-                            <span class="font-bold text-slate-800 text-base">${v.word}</span>
-                            <span class="text-xs text-slate-400 font-mono ml-2">${v.phonetic}</span>
+                            <span class="font-bold text-slate-800 text-sm">${v.word}</span>
+                            <span class="text-[11px] text-slate-400 font-mono ml-2">${v.phonetic || ''}</span>
                         </div>
                         <button onclick="speakText('${v.word.replace(/'/g, "\\'")}')" class="text-violet-500 hover:text-violet-700 bg-violet-50 p-1 rounded">
                             <i class="ph-bold ph-speaker-high"></i>
                         </button>
                     </div>
-                    <div class="text-[13px] font-medium text-violet-700 mb-2">${v.translation}</div>
-                    <div class="text-xs text-slate-500 italic border-l-2 border-slate-200 pl-2">"${v.context}"</div>
+                    <div class="text-xs font-semibold text-violet-700 mb-1.5">${v.translation}</div>
+                    <div class="text-[11px] text-slate-500 italic border-l-2 border-slate-200 pl-2">"${v.context}"</div>
                 </div>
             `).join('');
         }
 
         function highlightClick(word) {
             switchTab('vocab');
-            // Auto open right sidebar on mobile
             const sidebar = document.getElementById('right-sidebar');
-            if (sidebar.classList.contains('translate-x-full')) {
-                toggleMobileSidebar();
-            }
+            if (sidebar.classList.contains('translate-x-full')) toggleMobileSidebar();
         }
 
         function updateFlashcardUI() {
@@ -636,7 +771,6 @@
             const controls = document.getElementById('fc-controls');
             const emptyState = document.getElementById('fc-empty');
 
-            // Reset flip state
             const fc = document.querySelector('.flashcard');
             if(fc) fc.classList.remove('flipped');
 
@@ -653,25 +787,18 @@
 
             const wordData = slide.vocab[flashcardIndex];
             document.getElementById('fc-word').innerText = wordData.word;
-            document.getElementById('fc-phonetic').innerText = wordData.phonetic;
+            document.getElementById('fc-phonetic').innerText = wordData.phonetic || '';
             document.getElementById('fc-translation').innerText = wordData.translation;
             document.getElementById('fc-context').innerText = `"${wordData.context}"`;
             
             document.getElementById('fc-indicator').innerText = `${flashcardIndex + 1} / ${slide.vocab.length}`;
         }
 
-        function flipCard() {
-            document.querySelector('.flashcard').classList.toggle('flipped');
-        }
-        function prevCard() {
-            if (!slides[currentSlideIndex].vocab) return;
-            if (flashcardIndex > 0) flashcardIndex--;
-            updateFlashcardUI();
-        }
+        function flipCard() { document.querySelector('.flashcard').classList.toggle('flipped'); }
+        function prevCard() { if (flashcardIndex > 0) flashcardIndex--; updateFlashcardUI(); }
         function nextCard() {
             const vocab = slides[currentSlideIndex].vocab;
-            if (!vocab) return;
-            if (flashcardIndex < vocab.length - 1) flashcardIndex++;
+            if (vocab && flashcardIndex < vocab.length - 1) flashcardIndex++;
             updateFlashcardUI();
         }
 
@@ -682,22 +809,17 @@
                 utterance.lang = 'en-US';
                 utterance.rate = 0.9;
                 window.speechSynthesis.speak(utterance);
-            } else {
-                showToast('你的浏览器不支持语音朗读', 'error');
             }
         }
 
         function speakSlideText() {
             if (currentSlideIndex >= 0 && slides[currentSlideIndex].text) {
-                // Strip html/markdown for speaking
                 let cleanText = slides[currentSlideIndex].text.replace(/<[^>]+>/g, '').replace(/[\$\\]/g, '');
                 speakText(cleanText);
             }
         }
 
-        function handleChatEnter(e) {
-            if (e.key === 'Enter') sendChatMessage();
-        }
+        function handleChatEnter(e) { if (e.key === 'Enter') sendChatMessage(); }
 
         async function sendChatMessage() {
             const inputEl = document.getElementById('chat-input');
@@ -708,14 +830,8 @@
                 toggleSettings();
                 return;
             }
-            if (currentSlideIndex < 0) {
-                showToast('请先导入并选择一页课件', 'warning');
-                return;
-            }
 
             const chatContainer = document.getElementById('chat-messages');
-            
-            // Append User Message
             chatContainer.innerHTML += `
                 <div class="flex justify-end">
                     <div class="bg-slate-800 text-white rounded-lg p-2.5 max-w-[85%]">${message}</div>
@@ -723,64 +839,49 @@
             inputEl.value = '';
             chatContainer.scrollTop = chatContainer.scrollHeight;
 
-            // Loading indicator
             const loadingId = 'loading-' + Date.now();
             chatContainer.innerHTML += `
                 <div id="${loadingId}" class="flex justify-start">
-                    <div class="bg-violet-50 text-violet-500 rounded-lg p-2.5 max-w-[85%] flex items-center gap-2">
-                        <div class="loader w-3 h-3 border-2 border-violet-300 border-t-violet-600"></div> 思考中...
+                    <div class="bg-violet-50 text-violet-500 rounded-lg p-2 max-w-[85%] flex items-center gap-1.5">
+                        <div class="loader"></div> 思考中...
                     </div>
                 </div>`;
             chatContainer.scrollTop = chatContainer.scrollHeight;
 
             try {
                 const slide = slides[currentSlideIndex];
-                const contextText = slide.text || 'Image only slide';
-                const prompt = `Based on the following slide content context:\n"""\n${contextText}\n"""\n\nStudent asks: ${message}\nAnswer concisely and professionally. If explaining math/chem, use standard LaTeX ($...$ or $$...$$). Use Chinese for the explanation mostly.`;
+                const contextText = slide ? slide.text : '';
+                const prompt = `Slide context:\n"${contextText}"\n\nUser question: ${message}\nAnswer concisely. Use LaTeX ($...$) for math/chem equations.`;
 
                 const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }]
-                    })
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
                 });
 
-                if (!response.ok) throw new Error('Chat API failed');
+                if (!response.ok) throw new Error('Chat failed');
                 const data = await response.json();
                 const aiReply = data.candidates[0].content.parts[0].text;
 
                 document.getElementById(loadingId).remove();
                 
-                // Parse markdown and render KaTeX
                 const parsedHTML = marked.parse(aiReply);
-                
                 const replyDiv = document.createElement('div');
                 replyDiv.className = "flex justify-start";
-                replyDiv.innerHTML = `<div class="bg-white border border-slate-200 text-slate-700 rounded-lg p-3 max-w-[95%] prose prose-sm prose-violet">${parsedHTML}</div>`;
+                replyDiv.innerHTML = `<div class="bg-white border border-slate-200 text-slate-700 rounded-lg p-2.5 max-w-[95%] prose prose-xs prose-violet">${parsedHTML}</div>`;
                 
                 chatContainer.appendChild(replyDiv);
                 
-                // Apply KaTeX to the newly added message
                 renderMathInElement(replyDiv, {
-                    delimiters: [
-                        {left: '$$', right: '$$', display: true},
-                        {left: '$', right: '$', display: false}
-                    ],
+                    delimiters: [{left: '$$', right: '$$', display: true}, {left: '$', right: '$', display: false}],
                     throwOnError: false
                 });
 
                 chatContainer.scrollTop = chatContainer.scrollHeight;
 
             } catch (error) {
-                console.error(error);
                 document.getElementById(loadingId).remove();
-                chatContainer.innerHTML += `
-                <div class="flex justify-start">
-                    <div class="bg-red-50 text-red-600 border border-red-100 rounded-lg p-2.5 max-w-[85%]">
-                        <i class="ph-bold ph-warning-circle"></i> 请求失败，请检查网络或 API Key。
-                    </div>
-                </div>`;
+                showToast('请求失败，请检查网络或 API Key', 'error');
             }
         }
     </script>
