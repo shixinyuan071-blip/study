@@ -1,0 +1,1268 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SlidePrep 课前通 - 智能PPT/PDF/图片课件预习与专业英语标注系统</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- JSZip for Client-side PPTX parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- PDF.js for Client-side PDF rendering & parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <!-- KaTeX for Math & Chemistry Formula Rendering -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: #f8fafc;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 9999px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        .term-highlight {
+            border-bottom: 2px dashed #6366f1;
+            background-color: rgba(99, 102, 241, 0.08);
+            padding: 1px 3px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.15s ease-in-out;
+            color: #4338ca;
+            font-weight: 500;
+        }
+        .term-highlight:hover {
+            background-color: rgba(99, 102, 241, 0.2);
+            color: #3730a3;
+            border-bottom-style: solid;
+        }
+        .perspective-1000 {
+            perspective: 1000px;
+        }
+        .transform-style-3d {
+            transform-style: preserve-3d;
+        }
+        .backface-hidden {
+            backface-visibility: hidden;
+        }
+        .rotate-y-180 {
+            transform: rotateY(180deg);
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden text-slate-800 bg-slate-50">
+
+    <!-- Clear Modern Top Header Bar -->
+    <header class="bg-white border-b border-slate-200/80 px-5 py-2.5 flex items-center justify-between z-10 shrink-0 shadow-xs">
+        <!-- Left Brand Logo -->
+        <div class="flex items-center space-x-3">
+            <div class="bg-indigo-600 text-white w-8 h-8 rounded-lg shadow-sm flex items-center justify-center">
+                <i class="fa-solid fa-graduation-cap text-sm"></i>
+            </div>
+            <div>
+                <div class="flex items-center gap-2">
+                    <span class="font-semibold text-slate-900 tracking-tight text-sm">SlidePrep</span>
+                    <span class="bg-slate-100 text-slate-600 text-[10px] px-2 py-0.5 rounded-full font-medium border border-slate-200/60">智能课服</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Center Status / Deck Info Bar -->
+        <div id="deckInfoBar" class="hidden md:flex items-center space-x-2 bg-slate-100/70 border border-slate-200/60 px-3.5 py-1 rounded-full text-xs text-slate-600">
+            <i id="deckTypeIcon" class="fa-solid fa-file-powerpoint text-amber-500 text-xs"></i>
+            <span id="currentDeckTitle" class="font-medium text-slate-700 truncate max-w-xs">当前课件</span>
+            <span class="text-slate-300">/</span>
+            <span id="slideCounter" class="text-[11px] text-slate-500 font-mono">0 / 0 页</span>
+        </div>
+
+        <!-- Right Action Controls -->
+        <div class="flex items-center space-x-2">
+            <button onclick="openUploadModal()" class="px-3 py-1.5 text-xs font-medium bg-slate-900 hover:bg-slate-800 text-white rounded-lg transition shadow-xs flex items-center gap-1.5">
+                <i class="fa-solid fa-plus text-[11px]"></i>
+                <span>导入 PPT / PDF / 图片</span>
+            </button>
+            <div id="autoStatusBadge" class="px-2.5 py-1 text-[11px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200/80 rounded-lg flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>自动标注模式已开启</span>
+            </div>
+            <div class="h-4 w-[1px] bg-slate-200 mx-1"></div>
+            <button onclick="openApiKeyModal()" title="设置 API Key" class="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition">
+                <i class="fa-solid fa-gear text-sm"></i>
+            </button>
+        </div>
+    </header>
+
+    <div class="flex-1 flex overflow-hidden">
+        
+        <!-- Sidebar Navigation: Slide Thumbnails -->
+        <aside class="w-60 border-r border-slate-200/80 bg-white flex flex-col shrink-0">
+            <div class="p-3 border-b border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                <span class="font-medium">课件大纲</span>
+                <span id="termTotalBadge" class="bg-slate-100 text-slate-600 text-[10px] px-2 py-0.5 rounded-md font-mono">0 词</span>
+            </div>
+            
+            <div id="slideThumbnailList" class="flex-1 overflow-y-auto p-2.5 space-y-2 custom-scrollbar">
+                <!-- Thumbnails populated dynamically -->
+            </div>
+        </aside>
+
+        <!-- Main Workspace Area -->
+        <main class="flex-1 flex flex-col bg-slate-50/60 overflow-hidden relative">
+            <!-- Top Slide Sub-Toolbar -->
+            <div class="bg-white/80 backdrop-blur-sm border-b border-slate-200/60 px-6 py-2 flex items-center justify-between text-xs text-slate-600">
+                <div class="flex items-center space-x-1">
+                    <button id="prevSlideBtn" onclick="changeSlide(-1)" class="px-2.5 py-1 hover:bg-slate-100 rounded-md text-slate-700 disabled:opacity-30 disabled:hover:bg-transparent flex items-center gap-1 transition">
+                        <i class="fa-solid fa-chevron-left text-[10px]"></i> 上一页
+                    </button>
+                    <span id="currentSlideNumber" class="font-mono font-medium text-slate-800 px-3">Page 1</span>
+                    <button id="nextSlideBtn" onclick="changeSlide(1)" class="px-2.5 py-1 hover:bg-slate-100 rounded-md text-slate-700 disabled:opacity-30 disabled:hover:bg-transparent flex items-center gap-1 transition">
+                        下一页 <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                    </button>
+                </div>
+
+                <div class="flex items-center space-x-4">
+                    <label class="inline-flex items-center cursor-pointer gap-2 select-none">
+                        <input type="checkbox" id="autoTranslateToggle" checked class="sr-only peer" onchange="renderCurrentSlide()">
+                        <div class="relative w-7 h-4 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-indigo-600"></div>
+                        <span class="text-xs text-slate-600">专业词汇高亮</span>
+                    </label>
+                    <button onclick="speakSlideText()" title="朗读全页英文" class="text-slate-500 hover:text-indigo-600 flex items-center gap-1 transition">
+                        <i class="fa-solid fa-volume-high"></i> 朗读发音
+                    </button>
+                </div>
+            </div>
+
+            <!-- Slide Content Canvas -->
+            <div class="flex-1 overflow-y-auto p-6 flex justify-center items-start custom-scrollbar">
+                <div id="slideDisplayCard" class="bg-white rounded-xl shadow-xs border border-slate-200/80 w-full max-w-3xl p-8 min-h-[460px] flex flex-col justify-between transition-all relative">
+                    <!-- Loading Overlay -->
+                    <div id="slideLoadingOverlay" class="hidden absolute inset-0 bg-white/95 backdrop-blur-xs rounded-xl flex flex-col items-center justify-center z-20">
+                        <div class="w-8 h-8 border-3 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-3"></div>
+                        <p class="text-xs font-medium text-slate-700">Gemini 多模态 AI OCR & 词汇解析中...</p>
+                    </div>
+
+                    <!-- Slide Content Body -->
+                    <div>
+                        <div class="flex items-center justify-between mb-4">
+                            <span id="slideCategoryBadge" class="text-[11px] font-mono font-semibold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded-md">SLIDE 01</span>
+                        </div>
+
+                        <!-- Main Title -->
+                        <h2 id="slideTitle" class="text-xl font-bold text-slate-900 mb-4 leading-snug">加载中...</h2>
+
+                        <!-- Image Preview Slot (for PDF/Image Uploads) -->
+                        <div id="slideImageContainer" class="hidden mb-6 overflow-hidden rounded-xl border border-slate-200/80 shadow-xs max-h-80 flex justify-center bg-slate-900/5">
+                            <img id="slideImage" src="" alt="Slide Page View" class="max-h-80 object-contain rounded-xl">
+                        </div>
+
+                        <!-- Bullet Points Container -->
+                        <div id="slideContent" class="space-y-3.5 text-slate-700 text-sm leading-relaxed">
+                            <!-- Bullet points injected dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Slide Bottom Quick Summary Box -->
+                    <div id="slideQuickSummary" class="mt-8 border-t border-slate-100 pt-4 flex items-start gap-2.5 text-xs">
+                        <i class="fa-solid fa-circle-info text-indigo-500 mt-0.5 text-sm"></i>
+                        <div>
+                            <span class="font-semibold text-slate-800 block mb-0.5">本页预习概要</span>
+                            <p id="slideSummaryText" class="text-slate-600 leading-normal">请选择课件或点击“多模态 AI 标注”。</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Right Auxiliary Sidebar -->
+        <aside class="w-80 border-l border-slate-200/80 bg-white flex flex-col shrink-0">
+            <!-- Navigation Tabs -->
+            <div class="flex border-b border-slate-200/80 bg-white text-xs font-medium text-slate-500">
+                <button onclick="switchTab('terms')" id="tabBtn-terms" class="flex-1 py-3 border-b-2 border-indigo-600 text-indigo-600 font-semibold flex items-center justify-center gap-1 transition">
+                    <span>词汇 (<span id="termCountTab">0</span>)</span>
+                </button>
+                <button onclick="switchTab('summary')" id="tabBtn-summary" class="flex-1 py-3 border-b-2 border-transparent hover:text-slate-800 flex items-center justify-center gap-1 transition">
+                    <span>大纲</span>
+                </button>
+                <button onclick="switchTab('cards')" id="tabBtn-cards" class="flex-1 py-3 border-b-2 border-transparent hover:text-slate-800 flex items-center justify-center gap-1 transition">
+                    <span>背词卡</span>
+                </button>
+                <button onclick="switchTab('chat')" id="tabBtn-chat" class="flex-1 py-3 border-b-2 border-transparent hover:text-slate-800 flex items-center justify-center gap-1 transition">
+                    <span>AI 助教</span>
+                </button>
+            </div>
+
+            <!-- Tab 1: Terms & Annotations -->
+            <div id="tabContent-terms" class="flex-1 flex flex-col overflow-hidden p-3.5">
+                <div class="flex items-center justify-between mb-2.5">
+                    <span class="text-[11px] font-medium text-slate-400">本页提取的专业词汇</span>
+                </div>
+
+                <div id="termsList" class="flex-1 overflow-y-auto space-y-2.5 pr-0.5 custom-scrollbar">
+                    <!-- Term cards populated dynamically -->
+                </div>
+            </div>
+
+            <!-- Tab 2: Full Deck Summary -->
+            <div id="tabContent-summary" class="hidden flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+                <div class="bg-slate-50 border border-slate-200/60 rounded-xl p-3.5">
+                    <h3 class="font-semibold text-slate-800 text-xs mb-1.5"><i class="fa-solid fa-compass text-indigo-600 mr-1"></i> 全篇课件总览</h3>
+                    <p id="deckOverallSummary" class="text-xs text-slate-600 leading-relaxed">分析中...</p>
+                </div>
+
+                <div>
+                    <h4 class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">建议前置知识</h4>
+                    <ul id="prerequisiteList" class="space-y-1.5 text-xs text-slate-600">
+                        <!-- Populated dynamically -->
+                    </ul>
+                </div>
+
+                <div>
+                    <h4 class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">高频核心专业词库</h4>
+                    <div id="deckTopTerms" class="flex flex-wrap gap-1">
+                        <!-- Chips -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab 3: Vocabulary Flashcards -->
+            <div id="tabContent-cards" class="hidden flex-1 flex flex-col p-4 overflow-hidden">
+                <div class="flex-1 flex flex-col items-center justify-center">
+                    <div id="flashcard" onclick="flipCard()" class="w-full h-56 perspective-1000 cursor-pointer">
+                        <div id="flashcardInner" class="relative w-full h-full duration-300 transform-style-3d bg-white border border-slate-200/80 rounded-xl shadow-xs p-5 flex flex-col justify-between text-center">
+                            <!-- Front -->
+                            <div class="absolute inset-0 backface-hidden p-5 flex flex-col justify-center items-center">
+                                <span id="cardDifficulty" class="bg-slate-100 text-slate-600 text-[10px] font-medium px-2 py-0.5 rounded-full mb-2">CORE</span>
+                                <h3 id="cardTerm" class="text-xl font-bold text-slate-900 mb-1">Term</h3>
+                                <p id="cardIpa" class="text-xs text-slate-400 font-mono mb-3">/ ... /</p>
+                                <span class="text-[11px] text-indigo-600 font-medium">点击翻转卡片 <i class="fa-solid fa-rotate-right ml-0.5"></i></span>
+                            </div>
+                            <!-- Back -->
+                            <div class="absolute inset-0 backface-hidden rotate-y-180 p-5 bg-slate-900 text-white rounded-xl flex flex-col justify-center items-center">
+                                <h4 id="cardTranslation" class="text-base font-bold text-indigo-300 mb-1.5">翻译释义</h4>
+                                <p id="cardContext" class="text-xs text-slate-300 mb-2 leading-relaxed">上下文专业解释...</p>
+                                <p id="cardExample" class="text-[11px] text-slate-400 italic">"例句展示..."</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Flashcard Controls -->
+                <div class="flex items-center justify-between mt-3 px-1">
+                    <button onclick="prevCard()" class="p-1.5 text-slate-600 hover:bg-slate-100 rounded-lg text-xs">
+                        <i class="fa-solid fa-arrow-left"></i> 上一词
+                    </button>
+                    <span id="cardCounter" class="text-xs text-slate-400 font-mono">1 / 1</span>
+                    <button onclick="nextCard()" class="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg text-xs">
+                        下一词 <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tab 4: AI Assistant Chat -->
+            <div id="tabContent-chat" class="hidden flex-1 flex flex-col overflow-hidden p-3">
+                <div id="chatHistory" class="flex-1 overflow-y-auto space-y-2.5 p-1 custom-scrollbar text-xs">
+                    <div class="bg-slate-100 text-slate-700 p-3 rounded-xl border border-slate-200/60">
+                        <p class="font-semibold mb-1 text-slate-900"><i class="fa-solid fa-robot text-indigo-600 mr-1"></i> AI 预习助教</p>
+                        <p class="text-slate-600">有任何专业词汇或本页概念不懂，随时向我提问！支持图片与文档图文答疑。</p>
+                    </div>
+                </div>
+
+                <div class="mt-2 pt-2 border-t border-slate-200/80 flex items-center gap-1.5">
+                    <input type="text" id="chatInput" onkeypress="handleChatKeyPress(event)" placeholder="询问关于本页 PPT/PDF 的疑问..." class="flex-1 bg-slate-100 text-xs px-3 py-2 rounded-lg border border-transparent focus:bg-white focus:border-slate-300 focus:outline-none transition">
+                    <button onclick="sendChatMessage()" class="bg-slate-900 hover:bg-slate-800 text-white p-2 rounded-lg transition">
+                        <i class="fa-solid fa-paper-plane text-xs"></i>
+                    </button>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Upload Modal -->
+    <div id="uploadModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
+            <button onclick="closeUploadModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            
+            <h3 class="text-lg font-bold text-slate-900 mb-1">导入课堂课件</h3>
+            <p class="text-xs text-slate-500 mb-4">支持 `.pptx`, `.pdf`, `.png/.jpg` 图片及 `.txt` 文本，AI 将自动识别与提取专业词汇</p>
+
+            <!-- File Drop Zone -->
+            <div id="dropZone" onclick="document.getElementById('fileInput').click()" class="border-2 border-dashed border-indigo-200 hover:border-indigo-500 bg-indigo-50/40 hover:bg-indigo-50 rounded-xl p-6 text-center cursor-pointer transition mb-4">
+                <div class="flex justify-center items-center gap-3 text-2xl text-indigo-500 mb-2">
+                    <i class="fa-solid fa-file-powerpoint"></i>
+                    <i class="fa-solid fa-file-pdf"></i>
+                    <i class="fa-solid fa-file-image"></i>
+                </div>
+                <p class="text-xs font-semibold text-slate-700 mb-1">点击或拖拽文件至此处上传</p>
+                <p class="text-[10px] text-slate-400">支持 PPTX / PDF 文档 / 单张或多张 PPT 截屏图片</p>
+                <input type="file" id="fileInput" accept=".pptx,.pdf,.png,.jpg,.jpeg,.webp,.txt" multiple class="hidden" onchange="handleFileSelect(event)">
+            </div>
+
+            <!-- Demo Slide Decks Picker -->
+            <div class="border-t border-slate-100 pt-4">
+                <span class="text-xs font-bold text-slate-500 uppercase mb-2 block">或选择内置试用学术课件：</span>
+                <div class="grid grid-cols-1 gap-2">
+                    <button onclick="loadDemoDeck('cs')" class="text-left p-2.5 border border-slate-200 hover:border-indigo-500 rounded-xl hover:bg-indigo-50/30 transition flex items-center justify-between group">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">CS</div>
+                            <div>
+                                <p class="text-xs font-bold text-slate-800 group-hover:text-indigo-600">Machine Learning: Neural Networks</p>
+                                <p class="text-[10px] text-slate-400">计算机科学 • 3 页 • 前向传播与梯度下降</p>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-chevron-right text-xs text-slate-300 group-hover:text-indigo-500"></i>
+                    </button>
+
+                    <button onclick="loadDemoDeck('bio')" class="text-left p-2.5 border border-slate-200 hover:border-indigo-500 rounded-xl hover:bg-indigo-50/30 transition flex items-center justify-between group">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-xs">BIO</div>
+                            <div>
+                                <p class="text-xs font-bold text-slate-800 group-hover:text-indigo-600">Cellular Respiration & Metabolism</p>
+                                <p class="text-[10px] text-slate-400">生命科学 • 糖酵解与 ATP 合成</p>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-chevron-right text-xs text-slate-300 group-hover:text-indigo-500"></i>
+                    </button>
+
+                    <button onclick="loadDemoDeck('econ')" class="text-left p-2.5 border border-slate-200 hover:border-indigo-500 rounded-xl hover:bg-indigo-50/30 transition flex items-center justify-between group">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center font-bold text-xs">ECO</div>
+                            <div>
+                                <p class="text-xs font-bold text-slate-800 group-hover:text-indigo-600">Macroeconomics: Monetary Policy</p>
+                                <p class="text-[10px] text-slate-400">经济学 • 货币政策与量化宽松</p>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-chevron-right text-xs text-slate-300 group-hover:text-indigo-500"></i>
+                    </button>
+
+                    <button onclick="loadDemoDeck('chem')" class="text-left p-2.5 border border-slate-200 hover:border-indigo-500 rounded-xl hover:bg-indigo-50/30 transition flex items-center justify-between group">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-8 h-8 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center font-bold text-xs">CHEM</div>
+                            <div>
+                                <p class="text-xs font-bold text-slate-800 group-hover:text-indigo-600">Chemical Kinetics & Equations</p>
+                                <p class="text-[10px] text-slate-400">化学/理工 • 反应动力学与阿伦尼乌斯公式</p>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-chevron-right text-xs text-slate-300 group-hover:text-indigo-500"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- API Key Settings Modal -->
+    <div id="apiKeyModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+            <button onclick="closeApiKeyModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <h3 class="text-lg font-bold text-slate-900 mb-1">Gemini API 配置</h3>
+            <p class="text-xs text-slate-500 mb-4">可配置个人 Gemini API Key，或直接留空使用系统默认内置环境。</p>
+
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">API Key</label>
+                    <input type="password" id="apiKeyInput" placeholder="AIzaSy..." class="w-full bg-slate-50 border border-slate-200 text-xs rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <button onclick="saveApiKey()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 rounded-lg transition">
+                    保存设置
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // PDF.js Worker Configuration
+        if (typeof pdfjsLib !== 'undefined') {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+
+        // State Management
+        let userApiKey = "";
+        let currentDeck = null;
+        let activeSlideIndex = 0;
+        let cardIndex = 0;
+        let isCardFlipped = false;
+
+        // Sample Decks Data
+        const SAMPLE_DECKS = {
+            cs: {
+                title: "CS229: Deep Learning & Neural Networks",
+                overallSummary: "本课程涵盖深度神经网络的核心机制，包括前向传播算法、激活函数分类（ReLU, Sigmoid）、反向传播梯度推导以及过拟合正则化技术。",
+                prerequisites: ["线性代数（矩阵乘法与偏导数）", "Python 与 NumPy 基础", "概率论与损失函数基础"],
+                slides: [
+                    {
+                        number: 1,
+                        title: "Introduction to Artificial Neural Networks",
+                        bullets: [
+                            "Artificial Neural Networks (ANNs) are biologically inspired computational models designed to simulate pattern recognition.",
+                            "Perceptrons represent the most fundamental building block, computing a weighted sum of inputs followed by a non-linear activation function.",
+                            "Multi-Layer Perceptrons (MLPs) overcome linearly separable limitations by stacking hidden layers with non-linear activation functions like ReLU (Rectified Linear Unit)."
+                        ],
+                        cachedTerms: [
+                            { term: "Perceptrons", ipa: "/pərˈseptrɑːnz/", chineseTranslation: "感知机", contextExplanation: "人工神经网络中最基本的单层计算单元，通过权重求和并经激活函数输出。", difficulty: "Core", exampleSentence: "A single perceptron can only solve linearly separable problems." },
+                            { term: "Activation Function", ipa: "/ˌæktɪˈveɪʃn ˈfʌŋkʃn/", chineseTranslation: "激活函数", contextExplanation: "为神经网络引入非线性能力的数学函数，如 ReLU、Sigmoid。", difficulty: "Core", exampleSentence: "Without an activation function, a neural network is just a linear regression model." },
+                            { term: "Linearly Separable", ipa: "/ˈlɪniərli ˈsepərəbl/", chineseTranslation: "线性可分的", contextExplanation: "指可以通过几何中的超平面（如二维平面上的直线）完全分开的两类数据点。", difficulty: "Advanced", exampleSentence: "XOR pattern is famously not linearly separable." }
+                        ],
+                        summary: "讲解人工神经网络的基本构造，从单层感知机到具备非线性能力的多层感知机（MLP）。"
+                    },
+                    {
+                        number: 2,
+                        title: "Forward Propagation & Loss Calculation",
+                        bullets: [
+                            "Forward propagation computes the output logits by passing input vectors through successive weight matrices W and bias vectors b.",
+                            "Loss functions quantify the disparity between predicted output y_hat and ground truth targets y.",
+                            "Common loss functions include Cross-Entropy Loss for multi-class classification and Mean Squared Error (MSE) for regression tasks."
+                        ],
+                        cachedTerms: [
+                            { term: "Forward Propagation", ipa: "/ˈfɔːrwərd ˌprɑːpəˈɡeɪʃn/", chineseTranslation: "前向传播", contextExplanation: "数据从输入层顺次经过隐藏层计算，最终在输出层产生预测值的过程。", difficulty: "Core", exampleSentence: "During forward propagation, intermediate activations are saved for gradient calculation." },
+                            { term: "Cross-Entropy Loss", ipa: "/krɔːs ˈentrəpi lɔːs/", chineseTranslation: "交叉熵损失函数", contextExplanation: "用于衡量模型预测概率分布与真实标签分布之间差异的指标，常用于分类问题。", difficulty: "Advanced", exampleSentence: "Cross-entropy loss penalizes confident incorrect predictions heavily." },
+                            { term: "Logits", ipa: "/ˈlɑːdʒɪts/", chineseTranslation: "未归一化的预测分值", contextExplanation: "神经网络最后一层未经过 Softmax 函数转为概率的原始实数值输出。", difficulty: "Advanced", exampleSentence: "Pass the raw logits through softmax to obtain class probabilities." }
+                        ],
+                        summary: "阐述网络在前向传递过程中如何计算预测值，并使用交叉熵或均方误差量化与真实标签的误差。"
+                    },
+                    {
+                        number: 3,
+                        title: "Backpropagation & Stochastic Gradient Descent",
+                        bullets: [
+                            "Backpropagation utilizes the mathematical Chain Rule of calculus to compute partial derivatives of loss with respect to every trainable weight.",
+                            "Stochastic Gradient Descent (SGD) iteratively updates parameters in the direction of steepest loss descent using mini-batches.",
+                            "Advanced optimizers like Adam incorporate momentum and adaptive learning rates to mitigate vanishing gradients."
+                        ],
+                        cachedTerms: [
+                            { term: "Backpropagation", ipa: "/ˌbækprɑːpəˈɡeɪʃn/", chineseTranslation: "反向传播", contextExplanation: "利用求导链式法则，将损失函数的误差梯度从输出层向后传递以更新权重的过程。", difficulty: "Core", exampleSentence: "Backpropagation enables efficient training of modern deep neural networks." },
+                            { term: "Gradient Descent", ipa: "/ˈɡreɪdiənt dɪˈsent/", chineseTranslation: "梯度下降法", contextExplanation: "通过沿着目标函数梯度的反方向逐步调整参数，以寻找函数极小值点的优化算法。", difficulty: "Core", exampleSentence: "Stochastic gradient descent updates weights using a random subset of data." },
+                            { term: "Vanishing Gradient", ipa: "/ˈvænɪʃɪŋ ˈɡreɪdiənt/", chineseTranslation: "梯度消失", contextExplanation: "在深层网络中反向传播时，梯度逐层衰减趋近于零，导致前层网络无法更新权重的现象。", difficulty: "Advanced", exampleSentence: "ResNet architecture helps bypass the vanishing gradient problem." }
+                        ],
+                        summary: "介绍神经网络训练的核心——反向传播链式法则，以及使用 SGD 和 Adam 优化器更新权重的逻辑。"
+                    }
+                ]
+            },
+            bio: {
+                title: "BIO101: Cellular Respiration & ATP Synthesis",
+                overallSummary: "本篇课件探讨细胞呼吸作用的三大阶段：糖酵解、柠檬酸循环以及氧化磷酸化，阐明葡萄糖转化为化学能 ATP 的生物化学路径。",
+                prerequisites: ["有机化学基础（有机酸与氧化还原反应）", "细胞结构（线粒体基质与内膜）"],
+                slides: [
+                    {
+                        number: 1,
+                        title: "Overview of Cellular Respiration",
+                        bullets: [
+                            "Cellular respiration is a set of metabolic reactions that convert chemical energy from nutrients into Adenosine Triphosphate (ATP).",
+                            "The process consists of three major stages: Glycolysis, the Citric Acid Cycle, and Oxidative Phosphorylation.",
+                            "Aerobic respiration requires molecular oxygen as the final electron acceptor."
+                        ],
+                        cachedTerms: [
+                            { term: "Cellular Respiration", ipa: "/ˈseljələr ˌrespəˈreɪʃn/", chineseTranslation: "细胞呼吸", contextExplanation: "细胞将营养物质氧化分解并释放能量生成 ATP 的生化过程。", difficulty: "Core", exampleSentence: "Mitochondria are the primary site for aerobic cellular respiration." },
+                            { term: "Adenosine Triphosphate", ipa: "/əˈdenəsiːn traɪˈfɑːsfeɪt/", chineseTranslation: "三磷酸腺苷 (ATP)", contextExplanation: "细胞生命活动中直接能量供应的“分子货币”。", difficulty: "Core", exampleSentence: "ATP hydrolysis yields ADP and inorganic phosphate, releasing free energy." },
+                            { term: "Glycolysis", ipa: "/ɡlaɪˈkɑːləsɪs/", chineseTranslation: "糖酵解", contextExplanation: "在细胞质基质中发生的将一分子葡萄糖分解为两分子丙酮酸的厌氧反应阶段。", difficulty: "Advanced", exampleSentence: "Glycolysis generates a net yield of two ATP molecules." }
+                        ],
+                        summary: "细胞呼吸定义及其三大核心阶段概述，强调氧气在有氧呼吸中的电子受体角色。"
+                    }
+                ]
+            },
+            econ: {
+                title: "ECON202: Central Banking & Monetary Policy",
+                overallSummary: "讲解中央银行如何运用存款准备金率、公开市场操作与贴现率调控货币供应量，以应对通货膨胀与经济衰退。",
+                prerequisites: ["宏观经济学基础（IS-LM 模型）", "货币定义与供求关系"],
+                slides: [
+                    {
+                        number: 1,
+                        title: "Monetary Policy Instruments",
+                        bullets: [
+                            "Central banks utilize three primary monetary tools: Open Market Operations (OMO), Reserve Requirements, and Discount Rates.",
+                            "Expansionary monetary policy aims to stimulate aggregate demand during economic downturns by lowering interest rates.",
+                            "Quantitative Easing (QE) serves as an unconventional monetary tool when nominal policy rates hit the zero lower bound."
+                        ],
+                        cachedTerms: [
+                            { term: "Monetary Policy", ipa: "/ˈmɑːnɪteri ˈpɑːləsi/", chineseTranslation: "货币政策", contextExplanation: "中央银行通过控制货币供应量和利率水平来影响宏观经济的政策措施。", difficulty: "Core", exampleSentence: "The Federal Reserve adjusts monetary policy to achieve maximum employment and price stability." },
+                            { term: "Quantitative Easing", ipa: "/ˈkwɑːntɪteɪtɪv ˈiːzɪŋ/", chineseTranslation: "量化宽松 (QE)", contextExplanation: "央行通过公开市场购买长期国债等金融资产，向市场直接注入流动性的非传统政策。", difficulty: "Advanced", exampleSentence: "Central banks adopted quantitative easing following the 2008 financial crisis." }
+                        ],
+                        summary: "介绍央行货币政策三大工具（公开市场操作、准备金率、贴现率）及量化宽松等非常规手段。",
+                        analyzed: true
+                    }
+                ]
+            },
+            chem: {
+                title: "CHEM201: Chemical Kinetics & Reaction Mechanisms",
+                overallSummary: "探讨化学反应速率方程、阿伦尼乌斯方程（Arrhenius Equation）、反应活化能（Activation Energy）及催化机理，支持数学与化学公式精细化渲染。",
+                prerequisites: ["物理化学基础", "热力学第一与第二定律", "微积分与微分方程初步"],
+                slides: [
+                    {
+                        number: 1,
+                        title: "Reaction Rates & Rate Laws",
+                        bullets: [
+                            "The rate of a chemical reaction is defined as the change in concentration per unit time: $r = -\\frac{d[A]}{dt} = k[A]^m[B]^n$.",
+                            "The rate constant $k$ depends strongly on temperature according to the Arrhenius Equation: $k = A e^{-\\frac{E_a}{RT}}$.",
+                            "Catalysts accelerate reactions by providing an alternative reaction pathway with lower activation energy ($E_a$)."
+                        ],
+                        cachedTerms: [
+                            { term: "Activation Energy", ipa: "/ˌæktɪˈveɪʃn ˈenərdʒi/", chineseTranslation: "活化能 ($E_a$)", contextExplanation: "反应物分子从常态转变为容易发生化学反应的活跃状态所需要的最小能量。", difficulty: "Core", exampleSentence: "A catalyst speeds up a reaction by lowering its activation energy $E_a$." },
+                            { term: "Rate Constant", ipa: "/reɪt ˈkɑːnstənt/", chineseTranslation: "速率常数 ($k$)", contextExplanation: "反映化学反应本身固有速率特性的常数，其数值与温度和催化剂密切相关。", difficulty: "Core", exampleSentence: "The rate constant $k$ increases exponentially with temperature." },
+                            { term: "Arrhenius Equation", ipa: "/ɑːˈriːniəs ɪˈkweɪʒn/", chineseTranslation: "阿伦尼乌斯方程", contextExplanation: "描述化学反应速率常数 $k$ 与温度 $T$ 及活化能 $E_a$ 之间定量关系的经验公式：$\\ln k = \\ln A - \\frac{E_a}{RT}$。", difficulty: "Advanced", exampleSentence: "The Arrhenius equation yields a straight line when plotting $\\ln k$ against $1/T$." }
+                        ],
+                        summary: "介绍化学反应速率方程、速率常数 $k$ 以及描述温度影响的阿伦尼乌斯方程。",
+                        analyzed: true
+                    }
+                ]
+            }
+        };
+
+        window.onload = function() {
+            loadDemoDeck('cs');
+        };
+
+        function loadDemoDeck(deckKey) {
+            currentDeck = SAMPLE_DECKS[deckKey];
+            activeSlideIndex = 0;
+            closeUploadModal();
+
+            // Mark preset slides as analyzed
+            currentDeck.slides.forEach(s => { if (s.analyzed === undefined) s.analyzed = true; });
+
+            document.getElementById('currentDeckTitle').innerText = currentDeck.title;
+            document.getElementById('slideCounter').innerText = `1 / ${currentDeck.slides.length} 页`;
+            document.getElementById('deckTypeIcon').className = 'fa-solid fa-file-powerpoint text-amber-500 text-xs';
+            document.getElementById('deckInfoBar').classList.remove('hidden');
+
+            renderThumbnails();
+            renderCurrentSlide();
+            renderFullSummaryTab();
+        }
+
+        function renderThumbnails() {
+            const container = document.getElementById('slideThumbnailList');
+            container.innerHTML = '';
+
+            currentDeck.slides.forEach((slide, idx) => {
+                const isSelected = idx === activeSlideIndex;
+                const card = document.createElement('div');
+                card.className = `p-3 rounded-xl border text-left cursor-pointer transition flex flex-col justify-between min-h-20 ${
+                    isSelected ? 'border-indigo-600 bg-indigo-50/60 shadow-xs' : 'border-slate-200 bg-white hover:border-slate-300'
+                }`;
+                card.onclick = () => selectSlide(idx);
+
+                const hasImg = slide.imageUrl ? `<i class="fa-solid fa-image text-indigo-500 mr-1" title="含图像/页面照片"></i>` : '';
+                const statusBadge = slide.isAnalyzing 
+                    ? `<span class="text-[10px] text-amber-600 font-semibold animate-pulse"><i class="fa-solid fa-spinner animate-spin mr-0.5"></i> 标注中</span>`
+                    : slide.analyzed 
+                    ? `<span class="text-[10px] text-emerald-600 font-semibold"><i class="fa-solid fa-check-circle mr-0.5"></i> ${(slide.cachedTerms || []).length} 词</span>`
+                    : `<span class="text-[10px] text-slate-400 font-medium">待标注</span>`;
+
+                card.innerHTML = `
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}">P.${slide.number}</span>
+                        <div>${hasImg}${statusBadge}</div>
+                    </div>
+                    <p class="text-xs font-bold text-slate-800 line-clamp-2 leading-tight">${slide.title}</p>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function selectSlide(index) {
+            activeSlideIndex = index;
+            renderThumbnails();
+            renderCurrentSlide();
+
+            // Automatic annotation when user switches slide and it is not yet analyzed
+            const slide = currentDeck.slides[activeSlideIndex];
+            if (slide && !slide.analyzed && !slide.isAnalyzing) {
+                analyzeCurrentSlideWithAI();
+            }
+        }
+
+        function changeSlide(direction) {
+            const newIndex = activeSlideIndex + direction;
+            if (newIndex >= 0 && newIndex < currentDeck.slides.length) {
+                selectSlide(newIndex);
+            }
+        }
+
+        function renderCurrentSlide() {
+            const slide = currentDeck.slides[activeSlideIndex];
+            if (!slide) return;
+
+            document.getElementById('currentSlideNumber').innerText = `Page ${slide.number} of ${currentDeck.slides.length}`;
+            document.getElementById('prevSlideBtn').disabled = activeSlideIndex === 0;
+            document.getElementById('nextSlideBtn').disabled = activeSlideIndex === currentDeck.slides.length - 1;
+            document.getElementById('slideCategoryBadge').innerText = `SLIDE ${slide.number < 10 ? '0' + slide.number : slide.number}`;
+            document.getElementById('slideTitle').innerText = slide.title;
+            document.getElementById('slideSummaryText').innerText = slide.summary || "自动分析标注中...";
+
+            // Handle Slide Image rendering (for PDF pages or uploaded PNG/JPG slides)
+            const imgContainer = document.getElementById('slideImageContainer');
+            const slideImg = document.getElementById('slideImage');
+            if (slide.imageUrl) {
+                slideImg.src = slide.imageUrl;
+                imgContainer.classList.remove('hidden');
+            } else {
+                imgContainer.classList.add('hidden');
+            }
+
+            const terms = slide.cachedTerms || [];
+            const highlightEnabled = document.getElementById('autoTranslateToggle').checked;
+
+            const contentContainer = document.getElementById('slideContent');
+            contentContainer.innerHTML = '';
+
+            slide.bullets.forEach((bulletText) => {
+                let processedHtml = bulletText;
+
+                if (highlightEnabled && terms.length > 0) {
+                    terms.forEach((termObj) => {
+                        const regex = new RegExp(`\\b(${escapeRegExp(termObj.term)})\\b`, 'gi');
+                        processedHtml = processedHtml.replace(regex, (match) => {
+                            return `<span class="term-highlight" onclick="showTermDetails('${escapeQuotes(termObj.term)}')">${match}</span>`;
+                        });
+                    });
+                }
+
+                const bulletEl = document.createElement('div');
+                bulletEl.className = 'flex items-start space-x-3 p-2 rounded-lg hover:bg-slate-50 transition';
+                bulletEl.innerHTML = `
+                    <div class="w-2 h-2 rounded-full bg-indigo-500 mt-2 shrink-0"></div>
+                    <div class="text-slate-800 font-normal leading-relaxed text-sm md:text-base">${processedHtml}</div>
+                `;
+                contentContainer.appendChild(bulletEl);
+            });
+
+            renderTermsTab(terms);
+            setupFlashcards(terms);
+
+            // Auto Render KaTeX formulas to prevent math/chem garble
+            if (window.renderMathInElement) {
+                renderMathInElement(document.getElementById('slideDisplayCard'), {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false},
+                        {left: '\\(', right: '\\)', display: false},
+                        {left: '\\[', right: '\\]', display: true}
+                    ],
+                    throwOnError: false
+                });
+            }
+        }
+
+        function escapeRegExp(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+
+        function escapeQuotes(str) {
+            return str.replace(/'/g, "\\'");
+        }
+
+        function renderTermsTab(terms) {
+            const listContainer = document.getElementById('termsList');
+            document.getElementById('termCountTab').innerText = terms.length;
+            document.getElementById('termTotalBadge').innerText = `已识别 ${terms.length} 词汇`;
+            listContainer.innerHTML = '';
+
+            if (terms.length === 0) {
+                listContainer.innerHTML = `
+                    <div class="text-center py-12 text-slate-400">
+                        <i class="fa-solid fa-book-open text-3xl mb-2"></i>
+                        <p class="text-xs">本页尚未解析专业词汇</p>
+                    </div>
+                `;
+                return;
+            }
+
+            terms.forEach((t) => {
+                const card = document.createElement('div');
+                card.className = 'p-3 bg-slate-50 hover:bg-indigo-50/40 border border-slate-200 hover:border-indigo-300 rounded-xl transition group';
+                card.innerHTML = `
+                    <div class="flex items-start justify-between mb-1">
+                        <div class="flex items-center space-x-2">
+                            <h4 class="font-bold text-slate-900 text-sm group-hover:text-indigo-600 transition">${t.term}</h4>
+                            <button onclick="speakWord('${escapeQuotes(t.term)}')" class="text-slate-400 hover:text-indigo-600 text-xs">
+                                <i class="fa-solid fa-volume-high"></i>
+                            </button>
+                        </div>
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            t.difficulty === 'Core' ? 'bg-amber-100 text-amber-800' : 'bg-indigo-100 text-indigo-800'
+                        }">${t.difficulty || 'Core'}</span>
+                    </div>
+                    <p class="text-[11px] text-slate-400 font-mono mb-2">${t.ipa || ''}</p>
+                    <div class="bg-white p-2.5 rounded-lg border border-slate-100 text-xs space-y-1">
+                        <p class="font-bold text-slate-800">${t.chineseTranslation}</p>
+                        <p class="text-slate-600 leading-normal text-[11px]">${t.contextExplanation}</p>
+                    </div>
+                `;
+                listContainer.appendChild(card);
+            });
+
+            // Render KaTeX for terms list
+            if (window.renderMathInElement) {
+                renderMathInElement(listContainer, {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false}
+                    ],
+                    throwOnError: false
+                });
+            }
+        }
+
+        function showTermDetails(termName) {
+            switchTab('terms');
+            const terms = currentDeck.slides[activeSlideIndex].cachedTerms || [];
+            const termObj = terms.find(t => t.term.toLowerCase() === termName.toLowerCase());
+            if (termObj) {
+                speakWord(termObj.term);
+            }
+        }
+
+        function speakWord(word) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(word);
+                utterance.lang = 'en-US';
+                utterance.rate = 0.9;
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        function speakSlideText() {
+            const slide = currentDeck.slides[activeSlideIndex];
+            if (!slide) return;
+            const fullText = slide.title + ". " + slide.bullets.join(". ");
+            speakWord(fullText);
+        }
+
+        function setupFlashcards(terms) {
+            cardIndex = 0;
+            isCardFlipped = false;
+            updateFlashcardUI(terms);
+        }
+
+        function updateFlashcardUI(terms) {
+            const inner = document.getElementById('flashcardInner');
+            if (isCardFlipped) {
+                inner.classList.remove('rotate-y-180');
+                isCardFlipped = false;
+            }
+
+            if (!terms || terms.length === 0) {
+                document.getElementById('cardTerm').innerText = "无词汇";
+                document.getElementById('cardIpa').innerText = "";
+                document.getElementById('cardTranslation').innerText = "本页暂无卡片";
+                document.getElementById('cardContext').innerText = "";
+                document.getElementById('cardCounter').innerText = "0 / 0";
+                return;
+            }
+
+            const currentTerm = terms[cardIndex];
+            document.getElementById('cardDifficulty').innerText = currentTerm.difficulty || 'CORE';
+            document.getElementById('cardTerm').innerText = currentTerm.term;
+            document.getElementById('cardIpa').innerText = currentTerm.ipa || '';
+            document.getElementById('cardTranslation').innerText = currentTerm.chineseTranslation;
+            document.getElementById('cardContext').innerText = currentTerm.contextExplanation;
+            document.getElementById('cardExample').innerText = currentTerm.exampleSentence ? `"${currentTerm.exampleSentence}"` : '';
+            document.getElementById('cardCounter').innerText = `${cardIndex + 1} / ${terms.length}`;
+
+            // Render math formulas in card
+            if (window.renderMathInElement) {
+                renderMathInElement(document.getElementById('flashcard'), {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false}
+                    ],
+                    throwOnError: false
+                });
+            }
+        }
+
+        function flipCard() {
+            const inner = document.getElementById('flashcardInner');
+            isCardFlipped = !isCardFlipped;
+            if (isCardFlipped) {
+                inner.classList.add('rotate-y-180');
+            } else {
+                inner.classList.remove('rotate-y-180');
+            }
+        }
+
+        function nextCard() {
+            const terms = currentDeck.slides[activeSlideIndex].cachedTerms || [];
+            if (terms.length > 0) {
+                cardIndex = (cardIndex + 1) % terms.length;
+                updateFlashcardUI(terms);
+            }
+        }
+
+        function prevCard() {
+            const terms = currentDeck.slides[activeSlideIndex].cachedTerms || [];
+            if (terms.length > 0) {
+                cardIndex = (cardIndex - 1 + terms.length) % terms.length;
+                updateFlashcardUI(terms);
+            }
+        }
+
+        function renderFullSummaryTab() {
+            if (!currentDeck) return;
+            document.getElementById('deckOverallSummary').innerText = currentDeck.overallSummary || "暂无总览信息。";
+            
+            const prereqContainer = document.getElementById('prerequisiteList');
+            prereqContainer.innerHTML = '';
+            (currentDeck.prerequisites || []).forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'flex items-center gap-2';
+                li.innerHTML = `<i class="fa-solid fa-check text-indigo-500"></i> <span>${item}</span>`;
+                prereqContainer.appendChild(li);
+            });
+
+            const allTerms = [];
+            currentDeck.slides.forEach(s => {
+                (s.cachedTerms || []).forEach(t => allTerms.push(t.term));
+            });
+            const uniqueTerms = [...new Set(allTerms)];
+
+            const chipContainer = document.getElementById('deckTopTerms');
+            chipContainer.innerHTML = '';
+            uniqueTerms.forEach(t => {
+                const chip = document.createElement('span');
+                chip.className = 'bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-600 text-[11px] font-medium px-2.5 py-1 rounded-lg transition border border-slate-200 cursor-pointer';
+                chip.innerText = t;
+                chip.onclick = () => showTermDetails(t);
+                chipContainer.appendChild(chip);
+            });
+        }
+
+        function switchTab(tabName) {
+            ['terms', 'summary', 'cards', 'chat'].forEach(t => {
+                document.getElementById(`tabContent-${t}`).classList.add('hidden');
+                const btn = document.getElementById(`tabBtn-${t}`);
+                btn.classList.remove('border-indigo-600', 'text-indigo-600', 'font-bold');
+                btn.classList.add('border-transparent');
+            });
+
+            document.getElementById(`tabContent-${tabName}`).classList.remove('hidden');
+            activeBtn = document.getElementById(`tabBtn-${tabName}`);
+            activeBtn.classList.remove('border-transparent');
+            activeBtn.classList.add('border-indigo-600', 'text-indigo-600', 'font-bold');
+        }
+
+        async function analyzeCurrentSlideWithAI() {
+            const slide = currentDeck.slides[activeSlideIndex];
+            if (!slide || slide.isAnalyzing) return;
+
+            slide.isAnalyzing = true;
+            renderThumbnails();
+
+            const overlay = document.getElementById('slideLoadingOverlay');
+            overlay.classList.remove('hidden');
+
+            const systemPrompt = `You are an expert bilingual academic assistant specialized in higher education, Mathematics, Chemistry, Engineering, Computer Science, and Life Sciences.
+Analyze the provided slide content (text and/or image).
+CRITICAL MATH & CHEMISTRY INSTRUCTIONS:
+- The slide may contain mathematical formulas, calculus, physics equations, chemical structural names, or chemical reaction equations.
+- Format all mathematical or chemical formulas in standard LaTeX using '$...$' for inline formulas and '$$...$$' for block formulas (e.g. $E=mc^2$, $\\text{H}_2\\text{SO}_4$, $r = -\\frac{d[A]}{dt}$).
+- Absolutely DO NOT produce garbled text, unknown OCR symbols, corrupted unicode boxes, or unformatted raw math/chem noise.
+
+Return ONLY a valid JSON object matching the following structure:
+{
+  "extractedTitle": "Main slide title (OCR refined)",
+  "extractedBullets": ["Extracted bullet point 1 (use LaTeX $...$ for equations/chemical formulas)", "Extracted bullet point 2"],
+  "summary": "1-2 sentence overview of this slide in Simplified Chinese",
+  "terms": [
+    {
+      "term": "Exact English Academic Term/Phrase/Formula Symbol",
+      "ipa": "/Phonetic/",
+      "chineseTranslation": "准确中文翻译(含公式符号说明)",
+      "contextExplanation": "根据该学科上下文的简明专业解释(中文)",
+      "difficulty": "Core" or "Advanced",
+      "exampleSentence": "A short English example sentence using the term"
+    }
+  ]
+}`;
+
+            const parts = [];
+            const slideText = `Title: ${slide.title}\nBullets:\n${slide.bullets.join('\n')}`;
+            parts.push({ text: `Slide Content Context:\n${slideText}` });
+
+            // Multimodal Support: Attach image inlineData if available (from PDF rendering or Image Upload)
+            if (slide.imageUrl && slide.imageUrl.startsWith('data:image')) {
+                const base64Data = slide.imageUrl.split(',')[1];
+                const mimeType = slide.imageUrl.split(';')[0].split(':')[1];
+                parts.push({
+                    inlineData: {
+                        mimeType: mimeType,
+                        data: base64Data
+                    }
+                });
+            }
+
+            const payload = {
+                contents: [{ parts: parts }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                generationConfig: { responseMimeType: "application/json" }
+            };
+
+            try {
+                const apiKey = userApiKey || "";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) throw new Error("API request failed");
+
+                const result = await response.json();
+                const jsonText = result.candidates[0].content.parts[0].text;
+                const parsed = JSON.parse(jsonText);
+
+                if (parsed.extractedTitle && parsed.extractedTitle.length > 0) {
+                    slide.title = parsed.extractedTitle;
+                }
+                if (parsed.extractedBullets && parsed.extractedBullets.length > 0) {
+                    slide.bullets = parsed.extractedBullets;
+                }
+                slide.summary = parsed.summary || slide.summary;
+                slide.cachedTerms = parsed.terms || [];
+                slide.analyzed = true;
+
+            } catch (err) {
+                console.error("AI Analysis error:", err);
+            } finally {
+                slide.isAnalyzing = false;
+                overlay.classList.add('hidden');
+                renderThumbnails();
+                renderCurrentSlide();
+                renderFullSummaryTab();
+            }
+        }
+
+        async function sendChatMessage() {
+            const inputEl = document.getElementById('chatInput');
+            const userMsg = inputEl.value.trim();
+            if (!userMsg) return;
+
+            inputEl.value = '';
+            const history = document.getElementById('chatHistory');
+
+            const userBubble = document.createElement('div');
+            userBubble.className = 'bg-slate-800 text-white p-2.5 rounded-xl text-xs ml-6 font-medium';
+            userBubble.innerText = userMsg;
+            history.appendChild(userBubble);
+
+            const aiBubble = document.createElement('div');
+            aiBubble.className = 'bg-indigo-50 border border-indigo-100 text-indigo-900 p-2.5 rounded-xl text-xs mr-6';
+            aiBubble.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> 思考中...`;
+            history.appendChild(aiBubble);
+            history.scrollTop = history.scrollHeight;
+
+            const currentSlide = currentDeck.slides[activeSlideIndex];
+            const slideContext = `Current Slide Title: ${currentSlide.title}\nBullets:\n${currentSlide.bullets.join('\n')}`;
+
+            const parts = [{ text: `System Context: The user is a college student previewing a slide deck.\n${slideContext}\n\nStudent Question: ${userMsg}\n\nProvide a concise, helpful academic response in Chinese explaining the concept directly and simply.` }];
+
+            if (currentSlide.imageUrl && currentSlide.imageUrl.startsWith('data:image')) {
+                const base64Data = currentSlide.imageUrl.split(',')[1];
+                const mimeType = currentSlide.imageUrl.split(';')[0].split(':')[1];
+                parts.push({
+                    inlineData: { mimeType, data: base64Data }
+                });
+            }
+
+            try {
+                const apiKey = userApiKey || "";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts }] })
+                });
+
+                const result = await response.json();
+                const reply = result.candidates[0].content.parts[0].text;
+                aiBubble.innerText = reply;
+            } catch (e) {
+                aiBubble.innerText = "抱歉，回答遇到问题，请重新尝试。";
+            }
+            history.scrollTop = history.scrollHeight;
+        }
+
+        function handleChatKeyPress(e) {
+            if (e.key === 'Enter') sendChatMessage();
+        }
+
+        async function handleFileSelect(e) {
+            const files = e.target.files;
+            if (!files || files.length === 0) return;
+
+            const firstFile = files[0];
+            const ext = firstFile.name.split('.').pop().toLowerCase();
+
+            if (ext === 'pdf') {
+                parsePDFFile(firstFile);
+            } else if (ext === 'pptx') {
+                parsePPTXFile(firstFile);
+            } else if (['png', 'jpg', 'jpeg', 'webp'].includes(ext)) {
+                parseImageFiles(files);
+            } else if (ext === 'txt') {
+                parseTextFile(firstFile);
+            }
+        }
+
+        // PDF File Parser using PDF.js
+        async function parsePDFFile(file) {
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                const parsedSlides = [];
+
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    const pageText = textContent.items.map(item => item.str).join(' ').trim();
+
+                    // Render page to Canvas to get screenshot image
+                    const viewport = page.getViewport({ scale: 1.2 });
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+
+                    await page.render({ canvasContext: context, viewport: viewport }).promise;
+                    const imageUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+                    let lines = pageText.split(/(?<=[.!?])\s+/).filter(l => l.trim().length > 0);
+                    if (lines.length === 0) {
+                        lines = ["点击“多模态 AI 标注”，Gemini 将对 PDF 图片页进行全图 OCR 与专业词汇提取"];
+                    }
+
+                    parsedSlides.push({
+                        number: i,
+                        title: lines[0] && lines[0].length < 60 ? lines[0] : `PDF Page ${i}`,
+                        bullets: lines.length > 1 ? lines.slice(0, 8) : lines,
+                        imageUrl: imageUrl,
+                        summary: "PDF 页面已导入，点击‘多模态 AI 标注’进行提取",
+                        cachedTerms: []
+                    });
+                }
+
+                currentDeck = {
+                    title: file.name.replace(/\.[^/.]+$/, ""),
+                    overallSummary: `已成功导入 PDF 课件 (${file.name})，包含 ${pdf.numPages} 页图文内容。`,
+                    prerequisites: ["结合 PDF 讲义预习", "学习多模态提取的核心专业词汇"],
+                    slides: parsedSlides
+                };
+
+                activeSlideIndex = 0;
+                closeUploadModal();
+
+                document.getElementById('currentDeckTitle').innerText = currentDeck.title;
+                document.getElementById('slideCounter').innerText = `1 / ${currentDeck.slides.length} 页`;
+                document.getElementById('deckTypeIcon').className = 'fa-solid fa-file-pdf text-rose-500 text-xs';
+                document.getElementById('deckInfoBar').classList.remove('hidden');
+
+                renderThumbnails();
+                renderCurrentSlide();
+                renderFullSummaryTab();
+
+                analyzeCurrentSlideWithAI();
+            } catch (err) {
+                console.error("PDF Parsing error:", err);
+            }
+        }
+
+        // Image Files Parser (Screenshots, JPGs)
+        async function parseImageFiles(files) {
+            const fileList = Array.from(files);
+            const parsedSlides = [];
+
+            for (let i = 0; i < fileList.length; i++) {
+                const file = fileList[i];
+                const base64Url = await fileToDataURL(file);
+                parsedSlides.push({
+                    number: i + 1,
+                    title: file.name.replace(/\.[^/.]+$/, ""),
+                    bullets: ["图片已导入。点击“多模态 AI 标注”，Gemini 将进行全图识别与专业词汇提取。"],
+                    imageUrl: base64Url,
+                    summary: "图片课件已加载，等待 AI 深度解析",
+                    cachedTerms: []
+                });
+            }
+
+            currentDeck = {
+                title: fileList.length === 1 ? fileList[0].name : "图片集课件",
+                overallSummary: `已导入 ${fileList.length} 张图片/截图课件，支持多模态 AI OCR 解析与词汇提取。`,
+                prerequisites: ["结合课堂截图进行预习", "学习 OCR 提取的专业生词"],
+                slides: parsedSlides
+            };
+
+            activeSlideIndex = 0;
+            closeUploadModal();
+
+            document.getElementById('currentDeckTitle').innerText = currentDeck.title;
+            document.getElementById('slideCounter').innerText = `1 / ${parsedSlides.length} 页`;
+            document.getElementById('deckTypeIcon').className = 'fa-solid fa-file-image text-emerald-500 text-xs';
+            document.getElementById('deckInfoBar').classList.remove('hidden');
+
+            renderThumbnails();
+            renderCurrentSlide();
+            renderFullSummaryTab();
+
+            analyzeCurrentSlideWithAI();
+        }
+
+        function fileToDataURL(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = e => resolve(e.target.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // PPTX Parser
+        async function parsePPTXFile(file) {
+            try {
+                const zip = await JSZip.loadAsync(file);
+                const slideFiles = Object.keys(zip.files).filter(fileName => fileName.startsWith('ppt/slides/slide') && fileName.endsWith('.xml'));
+                
+                slideFiles.sort((a, b) => {
+                    const numA = parseInt(a.replace(/[^0-9]/g, ''));
+                    const numB = parseInt(b.replace(/[^0-9]/g, ''));
+                    return numA - numB;
+                });
+
+                const parsedSlides = [];
+                const parser = new DOMParser();
+
+                for (let i = 0; i < slideFiles.length; i++) {
+                    const xmlText = await zip.files[slideFiles[i]].async('text');
+                    const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+                    
+                    const textNodes = xmlDoc.getElementsByTagName('a:t');
+                    let rawLines = [];
+                    for (let node of textNodes) {
+                        const val = node.textContent.trim();
+                        if (val.length > 0) rawLines.push(val);
+                    }
+
+                    if (rawLines.length > 0) {
+                        const title = rawLines[0].length < 60 ? rawLines[0] : `Slide ${i + 1}`;
+                        const bullets = rawLines.slice(1).length > 0 ? rawLines.slice(1) : [rawLines[0]];
+                        parsedSlides.push({
+                            number: i + 1,
+                            title: title,
+                            bullets: bullets,
+                            summary: "新导入课件，点击‘多模态 AI 标注’提取专业词汇",
+                            cachedTerms: []
+                        });
+                    }
+                }
+
+                if (parsedSlides.length === 0) return;
+
+                currentDeck = {
+                    title: file.name.replace('.pptx', ''),
+                    overallSummary: `自定义导入 PPT (${file.name})，包含 ${parsedSlides.length} 页内容。`,
+                    prerequisites: ["准备好专业英语词汇积累", "结合课堂讲义复习"],
+                    slides: parsedSlides
+                };
+
+                activeSlideIndex = 0;
+                closeUploadModal();
+
+                document.getElementById('currentDeckTitle').innerText = currentDeck.title;
+                document.getElementById('slideCounter').innerText = `1 / ${currentDeck.slides.length} 页`;
+                document.getElementById('deckTypeIcon').className = 'fa-solid fa-file-powerpoint text-amber-500 text-xs';
+                document.getElementById('deckInfoBar').classList.remove('hidden');
+
+                renderThumbnails();
+                renderCurrentSlide();
+                renderFullSummaryTab();
+
+                analyzeCurrentSlideWithAI();
+
+            } catch (err) {
+                console.error("PPTX Parsing error:", err);
+            }
+        }
+
+        // TXT Parser
+        function parseTextFile(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                const paragraphs = text.split('\n\n').filter(p => p.trim());
+                const slides = paragraphs.map((p, idx) => {
+                    const lines = p.split('\n').filter(l => l.trim());
+                    return {
+                        number: idx + 1,
+                        title: lines[0] || `Section ${idx + 1}`,
+                        bullets: lines.slice(1).length > 0 ? lines.slice(1) : [lines[0]],
+                        summary: "点击多模态 AI 标注进行专业提取",
+                        cachedTerms: []
+                    };
+                });
+
+                currentDeck = {
+                    title: file.name,
+                    overallSummary: "已成功从文本导入知识框架。",
+                    prerequisites: [],
+                    slides: slides
+                };
+
+                activeSlideIndex = 0;
+                closeUploadModal();
+                document.getElementById('currentDeckTitle').innerText = currentDeck.title;
+                document.getElementById('slideCounter').innerText = `1 / ${slides.length} 页`;
+                document.getElementById('deckTypeIcon').className = 'fa-solid fa-file-lines text-blue-500 text-xs';
+                document.getElementById('deckInfoBar').classList.remove('hidden');
+                
+                renderThumbnails();
+                renderCurrentSlide();
+                renderFullSummaryTab();
+                analyzeCurrentSlideWithAI();
+            };
+            reader.readAsText(file);
+        }
+
+        // Modal Controllers
+        function openUploadModal() {
+            document.getElementById('uploadModal').classList.remove('hidden');
+        }
+        function closeUploadModal() {
+            document.getElementById('uploadModal').classList.add('hidden');
+        }
+        function openApiKeyModal() {
+            document.getElementById('apiKeyModal').classList.remove('hidden');
+        }
+        function closeApiKeyModal() {
+            document.getElementById('apiKeyModal').classList.add('hidden');
+        }
+        function saveApiKey() {
+            const key = document.getElementById('apiKeyInput').value.trim();
+            if (key) {
+                userApiKey = key;
+                closeApiKeyModal();
+            }
+        }
+    </script>
+</body>
+</html>
