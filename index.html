@@ -90,7 +90,11 @@
             </div>
         </div>
 
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2 sm:gap-3">
+            <button onclick="openSummaryModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-medium py-1.5 px-3 rounded-lg transition-colors flex items-center gap-1.5 border border-slate-200 shadow-sm">
+                <i class="ph-bold ph-file-text text-violet-600"></i>
+                <span class="hidden sm:inline">全课概括与导出</span>
+            </button>
             <label class="cursor-pointer bg-violet-600 hover:bg-violet-700 text-white text-xs sm:text-sm font-medium py-1.5 px-3.5 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm">
                 <i class="ph-bold ph-upload-simple"></i>
                 <span>导入课件</span>
@@ -283,6 +287,41 @@
         </div>
     </div>
 
+    <!-- Course Summary & Export Modal -->
+    <div id="summary-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center z-50 p-3 sm:p-6">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-3xl h-[85vh] flex flex-col overflow-hidden">
+            <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <i class="ph-bold ph-book-open text-violet-600"></i> 全课预习笔记与纲要概括
+                </h3>
+                <div class="flex items-center gap-2">
+                    <button onclick="downloadSummaryMD()" id="btn-download-md" class="hidden text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-sm transition-colors">
+                        <i class="ph-bold ph-download-simple"></i> 导出为 .md 文件
+                    </button>
+                    <button onclick="closeSummaryModal()" class="text-slate-400 hover:text-slate-600 p-1"><i class="ph-bold ph-x text-lg"></i></button>
+                </div>
+            </div>
+            
+            <div id="summary-content" class="flex-1 overflow-y-auto p-6 space-y-4 text-slate-700 text-sm leading-relaxed">
+                <div class="flex flex-col items-center justify-center h-full text-slate-400 py-12">
+                    <i class="ph-duotone ph-file-md text-5xl text-violet-400 mb-3"></i>
+                    <p class="text-sm font-medium text-slate-600 mb-1">尚未生成全课概括笔记</p>
+                    <p class="text-xs text-slate-400 mb-4 text-center max-w-md">AI 将结合已读取的全部幻灯片，为你整理出结构化的课程主线、重点概念与专业词汇表。</p>
+                    <button onclick="generateCourseSummary()" class="bg-violet-600 hover:bg-violet-700 text-white font-medium text-xs py-2 px-4 rounded-lg shadow-sm flex items-center gap-1.5">
+                        <i class="ph-bold ph-sparkle"></i> 立即生成本课概括笔记
+                    </button>
+                </div>
+            </div>
+
+            <div class="p-3 border-t border-slate-200 bg-slate-50 flex justify-between items-center text-xs text-slate-500">
+                <span id="summary-status-text">可直接将生成的预习笔记导出为 Markdown 格式存入 Obsidian / Notion</span>
+                <button onclick="generateCourseSummary()" id="btn-regenerate-summary" class="hidden bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-3 py-1.5 rounded-lg flex items-center gap-1">
+                    <i class="ph-bold ph-arrow-clockwise"></i> 重新生成
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div id="toast-container" class="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50 flex flex-col gap-2"></div>
 
     <script>
@@ -294,6 +333,7 @@
         let apiKey = localStorage.getItem('slideprep_gemini_key') || '';
         let apiBaseUrl = localStorage.getItem('slideprep_gemini_base') || 'https://generativelanguage.googleapis.com';
         let flashcardIndex = 0;
+        let currentSummaryMarkdown = '';
         
         // Batch Controller State
         let isBatchProcessing = false;
@@ -957,6 +997,126 @@
                 document.getElementById(loadingId).remove();
                 showToast(`请求失败: ${error.message}`, 'error');
             }
+        }
+
+        // --- Course Summary & Export Logic ---
+        function openSummaryModal() {
+            const modal = document.getElementById('summary-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeSummaryModal() {
+            const modal = document.getElementById('summary-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        async function generateCourseSummary() {
+            if (slides.length === 0) {
+                showToast('请先导入课件', 'warning');
+                return;
+            }
+            if (!apiKey) {
+                showToast('请先配置 API Key', 'warning');
+                toggleSettings();
+                return;
+            }
+
+            const summaryContainer = document.getElementById('summary-content');
+            const downloadBtn = document.getElementById('btn-download-md');
+            const regenBtn = document.getElementById('btn-regenerate-summary');
+            
+            summaryContainer.innerHTML = `
+                <div class="flex flex-col items-center justify-center h-full text-violet-600 space-y-3 py-16">
+                    <div class="loader w-8 h-8 border-4 border-violet-200 border-t-violet-600"></div>
+                    <p class="text-sm font-semibold">正在分析全课内容并撰写预习总结指南...</p>
+                    <p class="text-xs text-slate-400">正在整理核心主线、专业词汇与关键公式推导</p>
+                </div>`;
+            
+            downloadBtn.classList.add('hidden');
+
+            try {
+                // Collect text from all slides
+                const slideSummaryData = slides.map((s, idx) => {
+                    const vocabs = (s.vocab || []).map(v => `${v.word} (${v.translation})`).join(', ');
+                    return `【Page ${idx + 1}】:\n${s.text || '暂无文字'}\n[提取词汇]: ${vocabs || '无'}`;
+                }).join('\n\n');
+
+                const systemPrompt = `You are an expert university professor and academic note creator.
+Synthesize the provided multi-page lecture slides into a comprehensive, beautifully structured Chinese study guide / pre-class summary in Markdown format.
+
+Structure required:
+# 📖 课程整体预习指南与纲要
+
+## 📌 一、 课程主题与核心概括
+(2-3 paragraphs summarizing what this lecture is about)
+
+## 💡 二、 逐页/模块核心要点串讲
+(Group key concepts or list page-by-page takeaways concisely)
+
+## 📚 三、 核心专业术语与词汇表 (Glossary)
+(Create a markdown table: | 英文术语 | 音标/分类 | 中文释义 | 核心意义 |)
+
+## 🎯 四、 课前预习重点与重难点提示
+(Key formulas to remember, challenging logic, pre-reading advice)
+
+Use LaTeX ($...$ and $$...$$) for any formulas/equations. Keep markdown clean and readable.`;
+
+                const endpoint = `${apiBaseUrl}/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: `Here is the lecture slides content:\n\n${slideSummaryData}` }] }],
+                        systemInstruction: { parts: [{ text: systemPrompt }] }
+                    })
+                });
+
+                if (!response.ok) {
+                    const errJson = await response.json().catch(() => ({}));
+                    throw new Error(errJson.error?.message || `HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                currentSummaryMarkdown = data.candidates[0].content.parts[0].text;
+
+                const parsedHTML = marked.parse(currentSummaryMarkdown);
+                summaryContainer.innerHTML = `<div class="prose prose-violet max-w-none text-slate-700">${parsedHTML}</div>`;
+
+                renderMathInElement(summaryContainer, {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false}
+                    ],
+                    throwOnError: false
+                });
+
+                downloadBtn.classList.remove('hidden');
+                regenBtn.classList.remove('hidden');
+                showToast('全课概括生成完成！', 'success');
+
+            } catch (error) {
+                summaryContainer.innerHTML = `
+                    <div class="text-red-600 text-xs p-4 bg-red-50 rounded-xl border border-red-200 text-center">
+                        ❌ 生成概括失败: ${error.message}<br/>
+                        <button onclick="generateCourseSummary()" class="mt-3 text-violet-700 underline font-semibold text-sm">点击重试</button>
+                    </div>`;
+            }
+        }
+
+        function downloadSummaryMD() {
+            if (!currentSummaryMarkdown) return;
+            const blob = new Blob([currentSummaryMarkdown], { type: 'text/markdown;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `SlidePrep_课程预习总结_${new Date().toISOString().slice(0,10)}.md`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('已导出 Markdown 预习笔记文件！', 'success');
         }
     </script>
 </body>
